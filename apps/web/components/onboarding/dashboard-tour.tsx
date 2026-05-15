@@ -43,6 +43,20 @@ interface Step {
   placement?: 'bottom' | 'top' | 'left' | 'right';
 }
 
+/**
+ * Tour steps. Each `target` is a CSS selector — prefer `data-tour="…"`
+ * attributes (added explicitly on the target element) over `aria-label`
+ * or `href` matches, because:
+ *   - `aria-label` is often shared between a mobile (hidden) and a
+ *     desktop variant of the same button. `querySelector` then picks
+ *     the first match (mobile), which has `rect = 0×0` on desktop and
+ *     lands the popover in the top-left corner.
+ *   - `href` selectors are brittle if a route gets renamed.
+ *
+ * Placement is "where the popover sits relative to the target" — we
+ * default to `bottom` but use `right` for sidebar items so the popover
+ * doesn't cover the rest of the nav column.
+ */
 const STEPS: Step[] = [
   {
     title: 'Welcome to Forj.',
@@ -50,20 +64,20 @@ const STEPS: Step[] = [
   },
   {
     title: 'Your wallet lives here',
-    body: 'Settings is where you check your USDC balance, copy your deposit address, and (later) withdraw to your bank.',
-    target: 'a[href="/dashboard/settings"]',
+    body: 'Settings is where you check your USDC balance, copy your deposit address, and (later) cash out.',
+    target: '[data-tour="sidebar-settings"]',
     placement: 'right',
   },
   {
     title: 'Find work or hire talent',
     body: "Use the search bar — Cmd+K from anywhere — to jump to a job, a service, or a freelancer. It's the fastest way around.",
-    target: '[aria-label="Open search"]',
+    target: '[data-tour="search-trigger"]',
     placement: 'bottom',
   },
   {
     title: 'Save jobs you like',
     body: 'Tap the bookmark icon on any job card. They land here so you can come back without searching again.',
-    target: 'a[href="/dashboard/saved"]',
+    target: '[data-tour="sidebar-saved"]',
     placement: 'right',
   },
   {

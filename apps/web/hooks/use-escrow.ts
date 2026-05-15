@@ -9,12 +9,16 @@ import {
   useReadContract,
   useWriteContract,
 } from 'wagmi';
+import { useSmartWallets } from '@privy-io/react-auth/smart-wallets';
+import { encodeFunctionData } from 'viem';
 import {
   DEFAULT_CLIENT_FEE_BPS,
   erc20Abi,
   forjEscrowAbi,
   getAddresses,
 } from '@forj/contracts';
+import { useCanonicalWallet } from './use-canonical-wallet';
+import { SMART_WALLETS_ENABLED } from './use-fund-escrow-smart';
 
 /**
  * On-chain escrow client hook bundle. Lives in one file because the four
@@ -73,11 +77,17 @@ export interface FundEscrowResult {
 }
 
 /**
- * Reads the USDC balance of the connected wallet on the active chain.
- * Useful for showing "you need X more USDC" before triggering the wallet flow.
+ * Reads the USDC balance of the canonical wallet on the active chain.
+ *
+ * "Canonical" = the smart wallet when SW mode is enabled, otherwise
+ * the wagmi-connected EOA. The distinction matters because on a
+ * browser with MetaMask present, wagmi `useAccount()` returns the
+ * MetaMask EOA — but the smart wallet (a different address) is what
+ * actually holds Forj's USDC. Reading the wrong address would show
+ * "0 USDC" even when the user's smart wallet is well-funded.
  */
 export function useUsdcBalance() {
-  const { address } = useAccount();
+  const { address } = useCanonicalWallet();
   const chainId = useChainId();
   const usdc = chainId ? safeAddresses(chainId)?.usdc : undefined;
   return useReadContract({
@@ -90,11 +100,12 @@ export function useUsdcBalance() {
 }
 
 /**
- * Returns the live ERC-20 allowance from `address` to the escrow registry.
- * The fund hook reads this to decide whether to skip the approve step.
+ * Returns the live ERC-20 allowance from `canonicalAddress` to the
+ * escrow registry. The fund hook reads this to decide whether to
+ * skip the approve step.
  */
 function useUsdcAllowance(spender: Hex | undefined) {
-  const { address } = useAccount();
+  const { address } = useCanonicalWallet();
   const chainId = useChainId();
   const usdc = chainId ? safeAddresses(chainId)?.usdc : undefined;
   return useReadContract({
@@ -281,11 +292,23 @@ export function useFundEscrow() {
 }
 
 /**
- * Client-side `release()` — used after the freelancer has submitted.
- * Returns the txHash so the caller can post it to `contract.approveWork`
- * for backend verification.
+ * Send a single escrow function call via the active wallet.
+ *
+ * Auto-routes between two transports:
+ *   - **Smart wallet** (when `SMART_WALLETS_ENABLED` and a Privy smart
+ *     wallet client is available): packs the call into a sponsored
+ *     UserOperation. No MetaMask popup, no gas paid by the user.
+ *   - **EOA path** (legacy fallback): goes through wagmi's
+ *     `writeContractAsync` → MetaMask popup, user pays gas.
+ *
+ * The function name is constrained to the single-arg lifecycle calls
+ * (`release`, `claimAfterTimeout`) — they share an identical shape so a
+ * single helper covers both. Refund + raiseDispute could be added by
+ * widening the union if we wire them through the wallet later.
  */
-export function useReleaseEscrow() {
+type SingleArgEscrowFn = 'release' | 'claimAfterTimeout';
+
+function useEscrowSingleArgCall(functionName: SingleArgEscrowFn, status: EscrowFlowStatus) {
   const chainId = useChainId();
   const escrowAddr = useMemo(
     () => (chainId ? (safeAddresses(chainId)?.escrow as Hex | undefined) : undefined),
@@ -293,7 +316,8 @@ export function useReleaseEscrow() {
   );
   const publicClient = usePublicClient();
   const { writeContractAsync } = useWriteContract();
-  const [status, setStatus] = useState<EscrowFlowStatus>('idle');
+  const { client: smartClient } = useSmartWallets();
+  const [flowStatus, setFlowStatus] = useState<EscrowFlowStatus>('idle');
   const [error, setError] = useState<string | null>(null);
 
   const run = useCallback(
@@ -302,76 +326,71 @@ export function useReleaseEscrow() {
       if (!escrowAddr) throw new Error('Escrow registry not deployed on this chain');
       if (!publicClient) throw new Error('No RPC client');
 
-      setStatus('releasing');
-      const txHash = await writeContractAsync({
-        address: escrowAddr,
-        abi: forjEscrowAbi,
-        functionName: 'release',
-        args: [escrowId],
-        // See comment in useFundEscrow above — explicit gas dodges
-        // MetaMask's flaky Base-Sepolia estimator. Release does USDC
-        // transfers so it's slightly heavier than fund.
-        gas: 250_000n,
-      });
-      setStatus('confirming');
+      setFlowStatus(status);
+
+      let txHash: Hex;
+      if (SMART_WALLETS_ENABLED && smartClient) {
+        // Sponsored path — pack the call into a UserOperation. Privy
+        // shows ONE in-app confirm; Pimlico pays the gas; no MetaMask
+        // popup. Same as the fund flow, but only one call (not batched).
+        txHash = (await smartClient.sendTransaction({
+          calls: [
+            {
+              to: escrowAddr,
+              data: encodeFunctionData({
+                abi: forjEscrowAbi,
+                functionName,
+                args: [escrowId],
+              }),
+            },
+          ],
+        })) as Hex;
+      } else {
+        // EOA fallback — used in dev mode or when SW flag is off.
+        // Explicit gas dodges MetaMask's flaky Base-Sepolia estimator.
+        // Release does USDC transfers so it's slightly heavier than fund.
+        txHash = await writeContractAsync({
+          address: escrowAddr,
+          abi: forjEscrowAbi,
+          functionName,
+          args: [escrowId],
+          gas: 250_000n,
+        });
+      }
+
+      setFlowStatus('confirming');
       const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
       if (receipt.status !== 'success') {
-        setStatus('error');
-        setError('Release tx reverted on-chain');
-        throw new Error('Release tx reverted');
+        setFlowStatus('error');
+        const label = functionName === 'release' ? 'Release' : 'Claim';
+        setError(`${label} tx reverted on-chain`);
+        throw new Error(`${label} tx reverted`);
       }
-      setStatus('success');
+      setFlowStatus('success');
       return txHash;
     },
-    [escrowAddr, publicClient, writeContractAsync],
+    [escrowAddr, functionName, publicClient, smartClient, status, writeContractAsync],
   );
 
-  return { run, status, error, escrowAddr };
+  return { run, status: flowStatus, error, escrowAddr };
 }
 
 /**
- * Client-side `claimAfterTimeout()` — for the freelancer after auto-release
- * window has passed.
+ * Client-side `release()` — used after the freelancer has submitted.
+ * Returns the txHash so the caller can post it to `contract.approveWork`
+ * for backend verification. Smart-wallet-aware: routes to a sponsored
+ * UserOp when the flag is on, otherwise EOA writeContract.
+ */
+export function useReleaseEscrow() {
+  return useEscrowSingleArgCall('release', 'releasing');
+}
+
+/**
+ * Client-side `claimAfterTimeout()` — for the freelancer after auto-
+ * release window has passed. Same smart-wallet-aware routing as release.
  */
 export function useClaimRelease() {
-  const chainId = useChainId();
-  const escrowAddr = useMemo(
-    () => (chainId ? (safeAddresses(chainId)?.escrow as Hex | undefined) : undefined),
-    [chainId],
-  );
-  const publicClient = usePublicClient();
-  const { writeContractAsync } = useWriteContract();
-  const [status, setStatus] = useState<EscrowFlowStatus>('idle');
-  const [error, setError] = useState<string | null>(null);
-
-  const run = useCallback(
-    async (escrowId: bigint): Promise<Hex> => {
-      setError(null);
-      if (!escrowAddr) throw new Error('Escrow registry not deployed on this chain');
-      if (!publicClient) throw new Error('No RPC client');
-
-      setStatus('claiming');
-      const txHash = await writeContractAsync({
-        address: escrowAddr,
-        abi: forjEscrowAbi,
-        functionName: 'claimAfterTimeout',
-        args: [escrowId],
-        gas: 250_000n,
-      });
-      setStatus('confirming');
-      const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
-      if (receipt.status !== 'success') {
-        setStatus('error');
-        setError('Claim tx reverted on-chain');
-        throw new Error('Claim tx reverted');
-      }
-      setStatus('success');
-      return txHash;
-    },
-    [escrowAddr, publicClient, writeContractAsync],
-  );
-
-  return { run, status, error, escrowAddr };
+  return useEscrowSingleArgCall('claimAfterTimeout', 'claiming');
 }
 
 /**

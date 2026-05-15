@@ -9,19 +9,24 @@ import { cn } from '@/lib/utils';
 import { UserMenu } from '@/components/auth/user-menu';
 import { ThemeToggle } from '@/components/theme/theme-toggle';
 import { SearchTrigger } from '@/components/search/search-trigger';
+import { LanguageSwitcher } from '@/components/layout/language-switcher';
+import { useT } from '@/lib/i18n/provider';
 import { useAuth, hasPrivy } from '@/hooks/use-auth';
 
+// Nav links reference i18n keys (`nav.*`) — resolved per-render so a
+// language switch re-renders the link labels without a reload.
 const NAV_LINKS = [
-  { label: 'Browse Jobs', href: '/jobs' },
-  { label: 'Services', href: '/services' },
-  { label: 'How It Works', href: '/#how-it-works' },
-  { label: 'About', href: '/about' },
+  { labelKey: 'nav.browseJobs', href: '/jobs' },
+  { labelKey: 'nav.browseServices', href: '/services' },
+  { labelKey: 'nav.howItWorks', href: '/#how-it-works' },
+  { labelKey: 'nav.about', href: '/about' },
 ];
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const { isReady, isAuthenticated, user } = useAuth();
+  const t = useT();
   const showUserMenu = hasPrivy && isReady && isAuthenticated && Boolean(user);
   const showAuthCtas = !hasPrivy || (isReady && !isAuthenticated);
 
@@ -64,7 +69,7 @@ export function Navbar() {
                 href={link.href}
                 className="rounded-[var(--radius-sm)] px-3.5 py-2 text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)] hover:bg-[var(--color-text-primary)]/[0.04]"
               >
-                {link.label}
+                {t(link.labelKey)}
               </Link>
             ))}
           </div>
@@ -72,6 +77,7 @@ export function Navbar() {
           {/* Desktop CTA / User menu */}
           <div className="hidden items-center gap-3 md:flex">
             <SearchTrigger />
+            <LanguageSwitcher />
             <ThemeToggle />
             {showUserMenu ? (
               <UserMenu />
@@ -81,13 +87,13 @@ export function Navbar() {
                   href="/login"
                   className="rounded-[var(--radius-md)] px-4 py-2 text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
                 >
-                  Sign In
+                  {t('nav.signIn')}
                 </Link>
                 <Link
                   href="/signup"
                   className="inline-flex h-10 items-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-brand-primary)] px-5 text-sm font-semibold text-white hover:bg-[#c73e1d] shadow-[0_0_20px_var(--color-glow-brand)] transition-all duration-200 hover:shadow-[0_0_40px_var(--color-glow-brand-strong)] active:scale-[0.97]"
                 >
-                  Get Started
+                  {t('nav.signUp')}
                   <ChevronRight className="size-4" />
                 </Link>
               </>
@@ -156,7 +162,7 @@ export function Navbar() {
                     onClick={() => setMobileOpen(false)}
                     className="block rounded-[var(--radius-md)] px-4 py-3 text-base font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-text-primary)]/[0.04] hover:text-[var(--color-text-primary)]"
                   >
-                    {link.label}
+                    {t(link.labelKey)}
                   </Link>
                 </motion.div>
               ))}

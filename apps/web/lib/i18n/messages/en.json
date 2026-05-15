@@ -1,0 +1,95 @@
+{
+  "brand": {
+    "name": "Forj",
+    "tagline": "Work, forged in trust."
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "submit": "Submit",
+    "back": "Back",
+    "next": "Next",
+    "skip": "Skip",
+    "delete": "Delete",
+    "edit": "Edit",
+    "loading": "Loading…",
+    "tryAgain": "Try again",
+    "search": "Search…",
+    "comingSoon": "Coming soon"
+  },
+  "nav": {
+    "browseJobs": "Browse jobs",
+    "browseServices": "Services",
+    "howItWorks": "How it works",
+    "postJob": "Post a job",
+    "about": "About",
+    "signIn": "Sign in",
+    "signUp": "Sign up",
+    "viewPublicSite": "View public site"
+  },
+  "sidebar": {
+    "overview": "Overview",
+    "work": "Work",
+    "myJobs": "My Jobs",
+    "savedJobs": "Saved Jobs",
+    "myProposals": "My Proposals",
+    "myServices": "My Services",
+    "contracts": "Contracts",
+    "inbox": "Inbox",
+    "messages": "Messages",
+    "notifications": "Notifications",
+    "account": "Account",
+    "settings": "Settings"
+  },
+  "hero": {
+    "badge": "Live on Base · Open beta",
+    "title": "Work,",
+    "titleAccent": "forged in trust.",
+    "body": "Smart-contract escrow holds the payment until the work lands. Reviews and receipts live on-chain, so a freelancer's track record follows them anywhere. No middlemen, no withdrawal queues — just a receipt that can't be forged later.",
+    "ctaBrowse": "Browse open jobs",
+    "ctaHire": "Hire on-chain"
+  },
+  "stats": {
+    "platformFee": "Platform fee",
+    "settlement": "Settlement",
+    "network": "Network"
+  },
+  "auth": {
+    "welcomeBack": "Welcome back",
+    "createAccount": "Create your account",
+    "signInBody": "Sign in to your Forj account.",
+    "signUpBody": "Pick how you'd like to sign up. We'll create a wallet for you automatically.",
+    "joinForj": "Join Forj",
+    "newToForj": "New to Forj?",
+    "alreadyHaveAccount": "Already have an account?"
+  },
+  "wallet": {
+    "title": "Wallet",
+    "topUp": "Top up your wallet",
+    "withdraw": "Withdraw",
+    "depositAddress": "Your deposit address",
+    "copyAddress": "Copy address",
+    "copied": "Copied",
+    "viewOnBasescan": "View on Basescan",
+    "buyWithCard": "Buy USDC with card",
+    "claimTestnet": "Claim testnet USDC",
+    "sendOnBaseOnly": "Send USDC on {network} only",
+    "sendOnBaseOnlyBody": "Sending from a different chain (Ethereum, Polygon, BNB) or a different token will result in lost funds."
+  },
+  "empty": {
+    "nothingHere": "Nothing here yet",
+    "noJobs": "No jobs posted yet",
+    "noProposals": "No proposals yet",
+    "noContracts": "No contracts yet",
+    "noServices": "No services yet",
+    "noSavedJobs": "No bookmarks yet"
+  },
+  "footer": {
+    "platform": "Platform",
+    "onChain": "On-chain",
+    "company": "Company",
+    "legal": "Legal",
+    "rights": "© {year} Forj. All rights reserved.",
+    "builtOn": "Built on Base Network"
+  }
+}

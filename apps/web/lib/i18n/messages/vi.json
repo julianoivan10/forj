@@ -1,0 +1,95 @@
+{
+  "brand": {
+    "name": "Forj",
+    "tagline": "Công việc, được rèn trong niềm tin."
+  },
+  "common": {
+    "save": "Lưu",
+    "cancel": "Hủy",
+    "submit": "Gửi",
+    "back": "Quay lại",
+    "next": "Tiếp",
+    "skip": "Bỏ qua",
+    "delete": "Xóa",
+    "edit": "Sửa",
+    "loading": "Đang tải…",
+    "tryAgain": "Thử lại",
+    "search": "Tìm kiếm…",
+    "comingSoon": "Sắp ra mắt"
+  },
+  "nav": {
+    "browseJobs": "Việc làm",
+    "browseServices": "Dịch vụ",
+    "howItWorks": "Cách hoạt động",
+    "postJob": "Đăng việc",
+    "about": "Giới thiệu",
+    "signIn": "Đăng nhập",
+    "signUp": "Đăng ký",
+    "viewPublicSite": "Xem trang công khai"
+  },
+  "sidebar": {
+    "overview": "Tổng quan",
+    "work": "Công việc",
+    "myJobs": "Việc của tôi",
+    "savedJobs": "Đã lưu",
+    "myProposals": "Đề xuất",
+    "myServices": "Dịch vụ của tôi",
+    "contracts": "Hợp đồng",
+    "inbox": "Hộp thư",
+    "messages": "Tin nhắn",
+    "notifications": "Thông báo",
+    "account": "Tài khoản",
+    "settings": "Cài đặt"
+  },
+  "hero": {
+    "badge": "Đang hoạt động trên Base · Beta mở",
+    "title": "Công việc,",
+    "titleAccent": "được rèn trong niềm tin.",
+    "body": "Hợp đồng thông minh giữ tiền đến khi công việc hoàn thành. Đánh giá và biên nhận sống trên blockchain, hồ sơ freelancer theo họ đi khắp nơi. Không trung gian, không hàng đợi rút tiền — chỉ một biên nhận không thể giả mạo.",
+    "ctaBrowse": "Xem việc làm",
+    "ctaHire": "Thuê on-chain"
+  },
+  "stats": {
+    "platformFee": "Phí nền tảng",
+    "settlement": "Thanh toán",
+    "network": "Mạng"
+  },
+  "auth": {
+    "welcomeBack": "Chào mừng trở lại",
+    "createAccount": "Tạo tài khoản",
+    "signInBody": "Đăng nhập vào tài khoản Forj của bạn.",
+    "signUpBody": "Chọn cách đăng ký. Chúng tôi sẽ tạo ví tự động cho bạn.",
+    "joinForj": "Tham gia Forj",
+    "newToForj": "Mới biết Forj?",
+    "alreadyHaveAccount": "Đã có tài khoản?"
+  },
+  "wallet": {
+    "title": "Ví",
+    "topUp": "Nạp tiền vào ví",
+    "withdraw": "Rút",
+    "depositAddress": "Địa chỉ nạp tiền",
+    "copyAddress": "Sao chép địa chỉ",
+    "copied": "Đã sao chép",
+    "viewOnBasescan": "Xem trên Basescan",
+    "buyWithCard": "Mua USDC bằng thẻ",
+    "claimTestnet": "Nhận USDC testnet",
+    "sendOnBaseOnly": "Chỉ gửi USDC trên {network}",
+    "sendOnBaseOnlyBody": "Gửi từ chain khác (Ethereum, Polygon, BNB) hoặc token khác sẽ dẫn đến mất tiền."
+  },
+  "empty": {
+    "nothingHere": "Chưa có gì ở đây",
+    "noJobs": "Chưa đăng việc nào",
+    "noProposals": "Chưa có đề xuất",
+    "noContracts": "Chưa có hợp đồng",
+    "noServices": "Chưa có dịch vụ",
+    "noSavedJobs": "Chưa có bookmark"
+  },
+  "footer": {
+    "platform": "Nền tảng",
+    "onChain": "On-chain",
+    "company": "Công ty",
+    "legal": "Pháp lý",
+    "rights": "© {year} Forj. Bảo lưu mọi quyền.",
+    "builtOn": "Xây dựng trên Base Network"
+  }
+}

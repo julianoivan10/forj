@@ -1,0 +1,95 @@
+{
+  "brand": {
+    "name": "Forj",
+    "tagline": "Trabaho, hinubog sa tiwala."
+  },
+  "common": {
+    "save": "I-save",
+    "cancel": "Kanselahin",
+    "submit": "Ipasa",
+    "back": "Bumalik",
+    "next": "Susunod",
+    "skip": "Laktawan",
+    "delete": "Tanggalin",
+    "edit": "I-edit",
+    "loading": "Naglo-load…",
+    "tryAgain": "Subukan muli",
+    "search": "Maghanap…",
+    "comingSoon": "Malapit na"
+  },
+  "nav": {
+    "browseJobs": "Mga trabaho",
+    "browseServices": "Mga serbisyo",
+    "howItWorks": "Paano ito gumagana",
+    "postJob": "Mag-post ng trabaho",
+    "about": "Tungkol",
+    "signIn": "Mag-sign in",
+    "signUp": "Mag-sign up",
+    "viewPublicSite": "Tingnan ang public site"
+  },
+  "sidebar": {
+    "overview": "Pangkalahatan",
+    "work": "Trabaho",
+    "myJobs": "Mga Trabaho Ko",
+    "savedJobs": "Na-save",
+    "myProposals": "Mga Proposal Ko",
+    "myServices": "Mga Serbisyo Ko",
+    "contracts": "Mga Kontrata",
+    "inbox": "Inbox",
+    "messages": "Mga Mensahe",
+    "notifications": "Mga Abiso",
+    "account": "Account",
+    "settings": "Mga Setting"
+  },
+  "hero": {
+    "badge": "Aktibo sa Base · Bukas na beta",
+    "title": "Trabaho,",
+    "titleAccent": "hinubog sa tiwala.",
+    "body": "Smart-contract escrow ang humahawak sa bayad hanggang matapos ang trabaho. Reviews at resibo ay nakatira sa on-chain — ang track record ng freelancer ay kasama nila kahit saan. Walang middleman, walang withdrawal queue — resibo lang na hindi maaaring pekehin.",
+    "ctaBrowse": "Mga trabaho",
+    "ctaHire": "Mag-hire on-chain"
+  },
+  "stats": {
+    "platformFee": "Platform fee",
+    "settlement": "Settlement",
+    "network": "Network"
+  },
+  "auth": {
+    "welcomeBack": "Maligayang pagbabalik",
+    "createAccount": "Gumawa ng account",
+    "signInBody": "Mag-sign in sa iyong Forj account.",
+    "signUpBody": "Pumili ng paraan ng pag-sign up. Awtomatiko kaming gagawa ng wallet para sa'yo.",
+    "joinForj": "Sumali sa Forj",
+    "newToForj": "Bago sa Forj?",
+    "alreadyHaveAccount": "May account na?"
+  },
+  "wallet": {
+    "title": "Wallet",
+    "topUp": "Mag-top up ng wallet",
+    "withdraw": "Mag-withdraw",
+    "depositAddress": "Iyong deposit address",
+    "copyAddress": "Kopyahin ang address",
+    "copied": "Nakopya",
+    "viewOnBasescan": "Tingnan sa Basescan",
+    "buyWithCard": "Bumili ng USDC sa card",
+    "claimTestnet": "Mag-claim ng testnet USDC",
+    "sendOnBaseOnly": "Magpadala ng USDC sa {network} lamang",
+    "sendOnBaseOnlyBody": "Pagpapadala mula sa ibang chain (Ethereum, Polygon, BNB) o ibang token ay magreresulta sa nawawalang pondo."
+  },
+  "empty": {
+    "nothingHere": "Wala pa rito",
+    "noJobs": "Wala pang trabaho",
+    "noProposals": "Wala pang proposal",
+    "noContracts": "Wala pang kontrata",
+    "noServices": "Wala pang serbisyo",
+    "noSavedJobs": "Wala pang bookmark"
+  },
+  "footer": {
+    "platform": "Platform",
+    "onChain": "On-chain",
+    "company": "Kumpanya",
+    "legal": "Legal",
+    "rights": "© {year} Forj. Lahat ng karapatan ay nakalaan.",
+    "builtOn": "Itinayo sa Base Network"
+  }
+}

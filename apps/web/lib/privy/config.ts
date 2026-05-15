@@ -22,7 +22,7 @@ export const privyConfig: PrivyClientConfig = {
   loginMethods: ['email', 'google', 'twitter', 'wallet'],
   appearance: {
     theme: 'dark',
-    accentColor: '#00D4FF',
+    accentColor: '#DC4C2A',
     logo: '/logo.svg',
     showWalletLoginFirst: false,
     // Display name shown in the wallet permission prompt (MetaMask etc).

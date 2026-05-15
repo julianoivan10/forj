@@ -21,6 +21,8 @@ import { UserMenu } from '@/components/auth/user-menu';
 import { NotificationsBell } from '@/components/dashboard/notifications-bell';
 import { ThemeToggle } from '@/components/theme/theme-toggle';
 import { SearchTrigger } from '@/components/search/search-trigger';
+import { LanguageSwitcher } from '@/components/layout/language-switcher';
+import { useT } from '@/lib/i18n/provider';
 import { useAuth } from '@/hooks/use-auth';
 import { cn } from '@/lib/utils';
 
@@ -38,28 +40,45 @@ function getDashboardTitle(pathname: string): string {
   return DASHBOARD_TITLE_MAP.find((r) => r.match.test(pathname))?.label ?? 'Dashboard';
 }
 
-// Mobile nav mirrors the sidebar — every authenticated user sees every entry.
-// Role gating was removed in Phase 6: empty lists are a softer prompt than a
-// hidden menu item ("you don't have any proposals yet" beats "you don't have
-// permission to bid").
-const MOBILE_NAV: Array<{ label: string; href: string; icon: React.ComponentType<{ className?: string }> }> = [
-  { label: 'Overview', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'My Jobs', href: '/dashboard/jobs', icon: Briefcase },
-  { label: 'My Proposals', href: '/dashboard/proposals', icon: FileText },
-  { label: 'My Services', href: '/dashboard/services', icon: Sparkles },
-  { label: 'Saved Jobs', href: '/dashboard/saved', icon: Bookmark },
-  { label: 'Contracts', href: '/dashboard/contracts', icon: FileSignature },
-  { label: 'Messages', href: '/dashboard/messages', icon: MessageSquare },
-  { label: 'Notifications', href: '/dashboard/notifications', icon: Bell },
-  { label: 'Settings', href: '/dashboard/settings', icon: Settings },
+// Mobile drawer mirrors the desktop sidebar's grouped layout so users
+// get a consistent mental model across breakpoints. Same groups: Work,
+// Inbox, Account; same nesting (Saved Jobs under My Jobs).
+interface MobileNavItemKeyed {
+  labelKey: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  sub?: boolean;
+}
+const MOBILE_NAV: Array<{ titleKey: string | null; items: MobileNavItemKeyed[] }> = [
+  { titleKey: null, items: [{ labelKey: 'sidebar.overview', href: '/dashboard', icon: LayoutDashboard }] },
+  {
+    titleKey: 'sidebar.work',
+    items: [
+      { labelKey: 'sidebar.myJobs', href: '/dashboard/jobs', icon: Briefcase },
+      { labelKey: 'sidebar.savedJobs', href: '/dashboard/saved', icon: Bookmark, sub: true },
+      { labelKey: 'sidebar.myProposals', href: '/dashboard/proposals', icon: FileText },
+      { labelKey: 'sidebar.myServices', href: '/dashboard/services', icon: Sparkles },
+      { labelKey: 'sidebar.contracts', href: '/dashboard/contracts', icon: FileSignature },
+    ],
+  },
+  {
+    titleKey: 'sidebar.inbox',
+    items: [
+      { labelKey: 'sidebar.messages', href: '/dashboard/messages', icon: MessageSquare },
+      { labelKey: 'sidebar.notifications', href: '/dashboard/notifications', icon: Bell },
+    ],
+  },
+  {
+    titleKey: 'sidebar.account',
+    items: [{ labelKey: 'sidebar.settings', href: '/dashboard/settings', icon: Settings }],
+  },
 ];
 
 export function DashboardHeader() {
   const pathname = usePathname();
   const { user } = useAuth();
+  const t = useT();
   const [mobileOpen, setMobileOpen] = useState(false);
-
-  const visibleItems = MOBILE_NAV;
 
   // Derive page title from pathname. We map known top-level dashboard routes to
   // readable labels; anything deeper falls back to the nearest matching label so
@@ -84,6 +103,7 @@ export function DashboardHeader() {
 
         <div className="flex items-center gap-2">
           <SearchTrigger />
+          <LanguageSwitcher />
           <ThemeToggle />
           <NotificationsBell />
           <UserMenu />
@@ -120,35 +140,52 @@ export function DashboardHeader() {
                   <X className="size-5" />
                 </button>
               </div>
-              <nav className="space-y-1 p-3">
-                {visibleItems.map((item) => {
-                  const isActive = pathname === item.href;
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={() => setMobileOpen(false)}
-                      className={cn(
-                        'group relative flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-sm font-medium transition-all',
-                        isActive
-                          ? 'bg-[var(--color-brand-primary)]/10 text-[var(--color-brand-primary)]'
-                          : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-text-primary)]/[0.04] hover:text-[var(--color-text-primary)]',
-                      )}
-                    >
-                      {/* Same vermillion slab marker as desktop sidebar
-                          — visual consistency across breakpoints. */}
-                      <span
-                        aria-hidden
-                        className={cn(
-                          'absolute left-0 top-1/2 -translate-y-1/2 rounded-r-full bg-[var(--color-brand-primary)] transition-all',
-                          isActive ? 'h-5 w-[3px] opacity-100' : 'h-0 w-0 opacity-0',
-                        )}
-                      />
-                      <item.icon className={cn('size-[18px]', isActive && 'text-[var(--color-brand-primary)]')} />
-                      {item.label}
-                    </Link>
-                  );
-                })}
+              <nav className="overflow-y-auto p-3">
+                {MOBILE_NAV.map((group, gi) => (
+                  <div key={gi} className={cn(gi > 0 && 'mt-5')}>
+                    {group.titleKey ? (
+                      <p className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">
+                        {t(group.titleKey)}
+                      </p>
+                    ) : null}
+                    <div className="space-y-1">
+                      {group.items.map((item) => {
+                        const isActive =
+                          pathname === item.href ||
+                          (item.href !== '/dashboard' && pathname.startsWith(item.href));
+                        return (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            onClick={() => setMobileOpen(false)}
+                            className={cn(
+                              'group relative flex items-center gap-3 rounded-[var(--radius-md)] py-2 text-sm font-medium transition-all',
+                              item.sub ? 'pl-8 pr-3' : 'px-3',
+                              isActive
+                                ? 'bg-[var(--color-brand-primary)]/10 text-[var(--color-brand-primary)]'
+                                : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-text-primary)]/[0.04] hover:text-[var(--color-text-primary)]',
+                            )}
+                          >
+                            <span
+                              aria-hidden
+                              className={cn(
+                                'absolute left-0 top-1/2 -translate-y-1/2 rounded-r-full bg-[var(--color-brand-primary)] transition-all',
+                                isActive ? 'h-5 w-[3px] opacity-100' : 'h-0 w-0 opacity-0',
+                              )}
+                            />
+                            <item.icon
+                              className={cn(
+                                item.sub ? 'size-4' : 'size-[18px]',
+                                isActive ? 'text-[var(--color-brand-primary)]' : 'opacity-60',
+                              )}
+                            />
+                            {t(item.labelKey)}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </nav>
             </motion.div>
           </>

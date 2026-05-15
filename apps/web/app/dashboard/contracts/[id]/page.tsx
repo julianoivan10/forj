@@ -373,13 +373,32 @@ export default function ContractDetailPage() {
           },
         });
         toast.dismiss(tid);
-        await fundMut.mutateAsync({
-          paymentMethod: 'crypto',
-          contractId: c.id,
-          txHash: result.txHash,
-          onChainContractId: result.onChainContractId.toString(),
-          chainId,
-        });
+        try {
+          await fundMut.mutateAsync({
+            paymentMethod: 'crypto',
+            contractId: c.id,
+            txHash: result.txHash,
+            onChainContractId: result.onChainContractId.toString(),
+            chainId,
+          });
+        } catch (mutErr) {
+          // Critical UX gap: the on-chain tx already succeeded (USDC has
+          // moved into the escrow contract) but the backend rejected the
+          // record. If we just bubble the error, the user might click
+          // "Fund" again and lose another $X to a duplicate escrow with
+          // no DB linkage.
+          //
+          // Show an explicit "funds are on-chain, ask support" toast +
+          // log the txHash so the user can copy it. The status flag stays
+          // `success` on the hook so the Fund button stays disabled.
+          const raw = mutErr instanceof Error ? mutErr.message : 'Backend rejected the fund';
+          toast.error('Funds locked on-chain, but the record could not be linked.', {
+            description: `tx ${result.txHash.slice(0, 14)}… escrowId ${result.onChainContractId.toString()}. ${raw}. Contact support to reconcile — do not click Fund again.`,
+            duration: 60_000,
+          });
+          // Re-throw so the outer catch logs it.
+          throw mutErr;
+        }
       } catch (err) {
         toast.dismiss(tid);
         // Friendly mapping for common wallet errors.
@@ -791,7 +810,16 @@ export default function ContractDetailPage() {
                       fundEscrow.status === 'approving' ||
                       fundEscrow.status === 'funding' ||
                       fundEscrow.status === 'confirming' ||
-                      fundEscrow.status === 'checking-allowance'
+                      fundEscrow.status === 'checking-allowance' ||
+                      // CRITICAL: once the on-chain tx succeeded, the
+                      // escrow is funded regardless of whether the
+                      // backend DB write went through. Re-clicking would
+                      // create a SECOND escrow that drains another
+                      // amount+fee from the smart wallet. Lock the button
+                      // until the page refreshes (which clears the hook
+                      // state). The toast above tells the user to
+                      // contact support.
+                      fundEscrow.status === 'success'
                     }
                     onClick={handleFund}
                   >

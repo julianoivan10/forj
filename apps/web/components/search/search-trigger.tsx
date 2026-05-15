@@ -32,7 +32,10 @@ export function SearchTrigger() {
 
   return (
     <>
-      {/* Mobile / narrow — icon only */}
+      {/* Mobile / narrow — icon only.
+          NOTE: tour selector `[data-tour="search-trigger"]` lives on the
+          DESKTOP version below — that's the visible one at >= md, which
+          is the breakpoint where the tour runs. Don't move the attribute. */}
       <button
         type="button"
         onClick={open}
@@ -49,6 +52,7 @@ export function SearchTrigger() {
         type="button"
         onClick={open}
         aria-label="Open search"
+        data-tour="search-trigger"
         className={cn(
           'hidden h-9 min-w-[220px] items-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-background-elevated)] px-3 text-sm text-[var(--color-text-tertiary)] transition-colors hover:border-[var(--color-border-strong)] hover:text-[var(--color-text-secondary)] md:inline-flex',
         )}

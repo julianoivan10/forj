@@ -1,0 +1,95 @@
+{
+  "brand": {
+    "name": "Forj",
+    "tagline": "锻造于信任的工作。"
+  },
+  "common": {
+    "save": "保存",
+    "cancel": "取消",
+    "submit": "提交",
+    "back": "返回",
+    "next": "下一步",
+    "skip": "跳过",
+    "delete": "删除",
+    "edit": "编辑",
+    "loading": "加载中…",
+    "tryAgain": "重试",
+    "search": "搜索…",
+    "comingSoon": "即将推出"
+  },
+  "nav": {
+    "browseJobs": "浏览工作",
+    "browseServices": "服务",
+    "howItWorks": "工作原理",
+    "postJob": "发布工作",
+    "about": "关于",
+    "signIn": "登录",
+    "signUp": "注册",
+    "viewPublicSite": "查看公开页面"
+  },
+  "sidebar": {
+    "overview": "概览",
+    "work": "工作",
+    "myJobs": "我的工作",
+    "savedJobs": "已收藏",
+    "myProposals": "我的提案",
+    "myServices": "我的服务",
+    "contracts": "合约",
+    "inbox": "收件箱",
+    "messages": "消息",
+    "notifications": "通知",
+    "account": "账户",
+    "settings": "设置"
+  },
+  "hero": {
+    "badge": "已在 Base 上线 · 公开测试",
+    "title": "工作,",
+    "titleAccent": "锻造于信任。",
+    "body": "智能合约托管资金直到工作交付。评价和收据都在链上,自由职业者的履历无论走到哪里都跟随他们。没有中间人,没有提现排队 — 只有无法伪造的收据。",
+    "ctaBrowse": "浏览工作",
+    "ctaHire": "链上招聘"
+  },
+  "stats": {
+    "platformFee": "平台费",
+    "settlement": "结算",
+    "network": "网络"
+  },
+  "auth": {
+    "welcomeBack": "欢迎回来",
+    "createAccount": "创建账户",
+    "signInBody": "登录您的 Forj 账户。",
+    "signUpBody": "选择注册方式,我们会自动为您创建钱包。",
+    "joinForj": "加入 Forj",
+    "newToForj": "Forj 新用户?",
+    "alreadyHaveAccount": "已有账户?"
+  },
+  "wallet": {
+    "title": "钱包",
+    "topUp": "充值钱包",
+    "withdraw": "提取",
+    "depositAddress": "您的存款地址",
+    "copyAddress": "复制地址",
+    "copied": "已复制",
+    "viewOnBasescan": "在 Basescan 查看",
+    "buyWithCard": "刷卡购买 USDC",
+    "claimTestnet": "领取测试 USDC",
+    "sendOnBaseOnly": "仅在 {network} 上发送 USDC",
+    "sendOnBaseOnlyBody": "从其他链 (Ethereum、Polygon、BNB) 或其他代币发送将导致资金丢失。"
+  },
+  "empty": {
+    "nothingHere": "这里还没有内容",
+    "noJobs": "还没有发布工作",
+    "noProposals": "还没有提案",
+    "noContracts": "还没有合约",
+    "noServices": "还没有服务",
+    "noSavedJobs": "还没有收藏"
+  },
+  "footer": {
+    "platform": "平台",
+    "onChain": "链上",
+    "company": "公司",
+    "legal": "法律",
+    "rights": "© {year} Forj。版权所有。",
+    "builtOn": "构建于 Base Network"
+  }
+}

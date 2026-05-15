@@ -1,0 +1,95 @@
+{
+  "brand": {
+    "name": "Forj",
+    "tagline": "Trabajo, forjado en confianza."
+  },
+  "common": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "submit": "Enviar",
+    "back": "Atrás",
+    "next": "Siguiente",
+    "skip": "Omitir",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "loading": "Cargando…",
+    "tryAgain": "Reintentar",
+    "search": "Buscar…",
+    "comingSoon": "Próximamente"
+  },
+  "nav": {
+    "browseJobs": "Ver trabajos",
+    "browseServices": "Servicios",
+    "howItWorks": "Cómo funciona",
+    "postJob": "Publicar trabajo",
+    "about": "Acerca de",
+    "signIn": "Iniciar sesión",
+    "signUp": "Registrarse",
+    "viewPublicSite": "Ver sitio público"
+  },
+  "sidebar": {
+    "overview": "Resumen",
+    "work": "Trabajo",
+    "myJobs": "Mis Trabajos",
+    "savedJobs": "Guardados",
+    "myProposals": "Mis Propuestas",
+    "myServices": "Mis Servicios",
+    "contracts": "Contratos",
+    "inbox": "Bandeja",
+    "messages": "Mensajes",
+    "notifications": "Notificaciones",
+    "account": "Cuenta",
+    "settings": "Ajustes"
+  },
+  "hero": {
+    "badge": "Activo en Base · Beta abierta",
+    "title": "Trabajo,",
+    "titleAccent": "forjado en confianza.",
+    "body": "El contrato inteligente custodia el pago hasta que el trabajo se entrega. Las reseñas y los recibos viven en la cadena, así el historial del freelancer le sigue a donde vaya. Sin intermediarios, sin colas de retiro — solo un recibo imposible de falsificar.",
+    "ctaBrowse": "Ver trabajos",
+    "ctaHire": "Contratar on-chain"
+  },
+  "stats": {
+    "platformFee": "Comisión",
+    "settlement": "Liquidación",
+    "network": "Red"
+  },
+  "auth": {
+    "welcomeBack": "Bienvenido de nuevo",
+    "createAccount": "Crea tu cuenta",
+    "signInBody": "Inicia sesión en tu cuenta de Forj.",
+    "signUpBody": "Elige cómo registrarte. Crearemos una billetera automáticamente.",
+    "joinForj": "Únete a Forj",
+    "newToForj": "¿Nuevo en Forj?",
+    "alreadyHaveAccount": "¿Ya tienes cuenta?"
+  },
+  "wallet": {
+    "title": "Billetera",
+    "topUp": "Recargar billetera",
+    "withdraw": "Retirar",
+    "depositAddress": "Tu dirección de depósito",
+    "copyAddress": "Copiar dirección",
+    "copied": "Copiado",
+    "viewOnBasescan": "Ver en Basescan",
+    "buyWithCard": "Comprar USDC con tarjeta",
+    "claimTestnet": "Reclamar USDC testnet",
+    "sendOnBaseOnly": "Envía USDC solo en {network}",
+    "sendOnBaseOnlyBody": "Enviar desde otra cadena (Ethereum, Polygon, BNB) o un token distinto resultará en fondos perdidos."
+  },
+  "empty": {
+    "nothingHere": "Aún no hay nada aquí",
+    "noJobs": "Aún no hay trabajos publicados",
+    "noProposals": "Aún no hay propuestas",
+    "noContracts": "Aún no hay contratos",
+    "noServices": "Aún no hay servicios",
+    "noSavedJobs": "Aún no hay marcadores"
+  },
+  "footer": {
+    "platform": "Plataforma",
+    "onChain": "En cadena",
+    "company": "Empresa",
+    "legal": "Legal",
+    "rights": "© {year} Forj. Todos los derechos reservados.",
+    "builtOn": "Construido sobre Base Network"
+  }
+}

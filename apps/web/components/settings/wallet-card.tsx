@@ -10,11 +10,11 @@ import {
   Wallet,
   Zap,
 } from 'lucide-react';
-import { useAccount, useChainId } from 'wagmi';
+import { useChainId } from 'wagmi';
 import { formatUnits } from 'viem';
 import { Badge, Button, Skeleton } from '@/components/ui';
-import { FundWalletButton } from '@/components/settings/fund-wallet-button';
 import { useUsdcBalance } from '@/hooks/use-escrow';
+import { useCanonicalWallet } from '@/hooks/use-canonical-wallet';
 import { SMART_WALLETS_ENABLED } from '@/hooks/use-fund-escrow-smart';
 import { cn } from '@/lib/utils';
 
@@ -40,7 +40,9 @@ const SUPPORTED_CHAIN_IDS = Object.keys(CHAIN_META).map(Number);
  * Privy embedded wallet.
  */
 export function WalletCard({ dbWallet }: { dbWallet: string | null }) {
-  const { address, isConnected, isConnecting } = useAccount();
+  const { address, isReady } = useCanonicalWallet();
+  const isConnected = Boolean(address);
+  const isConnecting = !isReady;
   const chainId = useChainId();
   const usdc = useUsdcBalance();
   const [copied, setCopied] = useState(false);
@@ -170,19 +172,11 @@ export function WalletCard({ dbWallet }: { dbWallet: string | null }) {
             <ChainStat chainId={chainId} info={chainInfo} supported={isSupported} />
           </div>
 
-          {/* Fiat on-ramp / faucet shortcut.
-              On mainnet: Privy's hosted on-ramp (MoonPay / Coinbase) sends
-                USDC straight to this address.
-              On testnet: link to the Circle faucet (real on-ramps don't
-                sell test USDC — that would defeat the point). */}
-          <div className="mt-4">
-            <FundWalletButton walletAddress={displayAddress} className="w-full sm:w-auto" />
-            <p className="mt-2 text-[11px] text-[var(--color-text-tertiary)]">
-              {chainInfo?.testnet
-                ? 'Testnet USDC is free — claim from the Circle faucet to get started.'
-                : 'Card → USDC. Funds settle on Base in a few minutes. We never touch the money — Privy + the on-ramp partner handle it directly.'}
-            </p>
-          </div>
+          {/* Top-up / on-ramp affordances are NOT rendered here anymore —
+              the dedicated DepositCard immediately below this section
+              owns the QR + address + on-ramp CTAs, so duplicating them
+              here just visually doubles the card. Wallet card stays
+              focused on identity (address + balance + chain). */}
 
           {!isSupported && chainId ? (
             <div className="mt-3 flex items-start gap-2 rounded-[var(--radius-md)] border border-[var(--color-error)]/30 bg-[var(--color-error)]/5 p-3 text-xs text-[var(--color-text-secondary)]">

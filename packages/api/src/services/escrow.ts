@@ -92,8 +92,11 @@ export interface VerifiedFunding {
   client: Hex;
   freelancer: Hex;
   amount: bigint;
+  /** USDC paid in addition to `amount` as the client-side fee. v2 only. */
+  clientFee: bigint;
+  /** Freelancer-side fee bps snapshotted at fund time. Deducted at release. */
+  freelancerFeeBps: number;
   deliveryDeadline: bigint;
-  feeBps: number;
   blockNumber: bigint;
 }
 
@@ -169,10 +172,28 @@ async function getReceiptOrThrow(
   if (receipt.status !== 'success') {
     throw new EscrowVerificationError('tx_failed', `Tx ${txHash} reverted on-chain`);
   }
-  if (receipt.to?.toLowerCase() !== expectedTo.toLowerCase()) {
+
+  // We used to require `receipt.to === escrow` here. That works for plain
+  // EOA-signed transactions, but BREAKS for smart-wallet (ERC-4337) flows:
+  // the bundler sends `handleOps([...])` to the EntryPoint contract
+  // (0x0000…71727de2…), and the EntryPoint then calls our smart wallet
+  // which calls the escrow. So `receipt.to` is the EntryPoint, not our
+  // escrow — making the strict check reject every sponsored fund tx.
+  //
+  // The proper check: confirm that *one of the logs* on the receipt was
+  // emitted by our escrow address. That's enough to prove the funds
+  // actually flowed through our contract regardless of how the tx was
+  // routed. `decodeFirstMatchingEvent` does that filter downstream — we
+  // just need to make sure at least one log has our address as emitter.
+  const fromEscrow = receipt.logs.some(
+    (log) => log.address.toLowerCase() === expectedTo.toLowerCase(),
+  );
+  if (!fromEscrow) {
     throw new EscrowVerificationError(
       'wrong_contract',
-      `Tx ${txHash} targeted ${receipt.to}, expected ${expectedTo}`,
+      `Tx ${txHash} has no logs from escrow ${expectedTo}. ` +
+        `Receipt targeted ${receipt.to} — neither the EOA direct path ` +
+        `nor a UserOp routed through this escrow.`,
     );
   }
   return receipt;
@@ -192,14 +213,24 @@ type EscrowEventName =
   | 'DisputeResolved';
 
 /**
- * Find the first log on `receipt` that decodes as the named event of our
- * escrow ABI. Returns the decoded args + the index. Throws if not present.
+ * Find the first log on `receipt` that:
+ *   1. Was emitted by `escrowAddress` (not just any contract).
+ *   2. Decodes as the named event of our escrow ABI.
+ *
+ * The address filter is defence-in-depth for the UserOp case: a single
+ * receipt can contain logs from many contracts (USDC, EntryPoint, etc.),
+ * and we don't want to accidentally accept an `EscrowFunded`-shaped
+ * event emitted by some unrelated contract that happened to be touched
+ * in the same UserOp. By anchoring decode to our address, only events
+ * our contract emitted count.
  */
 function decodeFirstMatchingEvent(
-  logs: readonly { topics: readonly Hex[]; data: Hex }[],
+  logs: readonly { address: Hex; topics: readonly Hex[]; data: Hex }[],
   eventName: EscrowEventName,
+  escrowAddress: Hex,
 ) {
   for (const log of logs) {
+    if (log.address.toLowerCase() !== escrowAddress.toLowerCase()) continue;
     try {
       const decoded = decodeEventLog({
         abi: forjEscrowAbi,
@@ -214,7 +245,7 @@ function decodeFirstMatchingEvent(
   }
   throw new EscrowVerificationError(
     'event_missing',
-    `Receipt did not contain a ${eventName} event`,
+    `Receipt did not contain a ${eventName} event from ${escrowAddress}`,
   );
 }
 
@@ -241,14 +272,17 @@ export async function verifyEscrowFunding(params: {
   const client = getClient(chainId);
   const receipt = await getReceiptOrThrow(client, txHash, chainId, registry);
 
-  const decoded = decodeFirstMatchingEvent(receipt.logs, 'EscrowFunded');
+  const decoded = decodeFirstMatchingEvent(receipt.logs, 'EscrowFunded', registry);
+  // v2 event shape: amount + clientFee + freelancerFeeBps + deliveryDeadline.
+  // The old v1 event only had `feeBps` (single side); v2 splits it.
   const args = decoded.args as {
     escrowId: bigint;
     client: Hex;
     freelancer: Hex;
     amount: bigint;
+    clientFee: bigint;
+    freelancerFeeBps: number;
     deliveryDeadline: bigint;
-    feeBps: number;
   };
 
   // Strict compare — case-insensitive for addresses (checksum doesn't always
@@ -279,8 +313,9 @@ export async function verifyEscrowFunding(params: {
     client: args.client,
     freelancer: args.freelancer,
     amount: args.amount,
+    clientFee: args.clientFee,
+    freelancerFeeBps: Number(args.freelancerFeeBps),
     deliveryDeadline: args.deliveryDeadline,
-    feeBps: Number(args.feeBps),
     blockNumber: receipt.blockNumber,
   };
 }
@@ -303,12 +338,16 @@ export async function verifyEscrowRelease(params: {
   const client = getClient(chainId);
   const receipt = await getReceiptOrThrow(client, txHash, chainId, registry);
 
-  const decoded = decodeFirstMatchingEvent(receipt.logs, 'Released');
+  const decoded = decodeFirstMatchingEvent(receipt.logs, 'Released', registry);
+  // v2 emits `totalFee` (clientFee + freelancerCut combined); v1 emitted
+  // just `feeAmount` (single side). The ABI was regenerated for v2 so
+  // viem decodes the new field name — we just need to surface it
+  // consistently in our return type.
   const args = decoded.args as {
     escrowId: bigint;
     freelancer: Hex;
     freelancerAmount: bigint;
-    feeAmount: bigint;
+    totalFee: bigint;
   };
 
   if (args.escrowId !== expected.escrowId) {
@@ -328,7 +367,7 @@ export async function verifyEscrowRelease(params: {
     escrowId: args.escrowId,
     freelancer: args.freelancer,
     freelancerAmount: args.freelancerAmount,
-    feeAmount: args.feeAmount,
+    feeAmount: args.totalFee,
     blockNumber: receipt.blockNumber,
   };
 }
@@ -346,7 +385,7 @@ export async function verifyEscrowRefund(params: {
   const client = getClient(chainId);
   const receipt = await getReceiptOrThrow(client, txHash, chainId, registry);
 
-  const decoded = decodeFirstMatchingEvent(receipt.logs, 'Refunded');
+  const decoded = decodeFirstMatchingEvent(receipt.logs, 'Refunded', registry);
   const args = decoded.args as {
     escrowId: bigint;
     client: Hex;
@@ -390,7 +429,7 @@ export async function verifyEscrowResolution(params: {
   const client = getClient(chainId);
   const receipt = await getReceiptOrThrow(client, txHash, chainId, registry);
 
-  const decoded = decodeFirstMatchingEvent(receipt.logs, 'DisputeResolved');
+  const decoded = decodeFirstMatchingEvent(receipt.logs, 'DisputeResolved', registry);
   const args = decoded.args as {
     escrowId: bigint;
     toFreelancer: bigint;

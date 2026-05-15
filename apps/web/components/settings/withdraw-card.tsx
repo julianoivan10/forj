@@ -16,11 +16,12 @@ import {
   parseUnits,
   type Hex,
 } from 'viem';
-import { useAccount, useChainId, usePublicClient } from 'wagmi';
+import { useChainId, usePublicClient } from 'wagmi';
 import { useSmartWallets } from '@privy-io/react-auth/smart-wallets';
 import { getAddresses } from '@forj/contracts';
 import { Badge, Button, Input, Label } from '@/components/ui';
 import { useUsdcBalance } from '@/hooks/use-escrow';
+import { useCanonicalWallet } from '@/hooks/use-canonical-wallet';
 import { SMART_WALLETS_ENABLED } from '@/hooks/use-fund-escrow-smart';
 import { formatUSD } from '@/lib/utils';
 
@@ -46,7 +47,7 @@ import { formatUSD } from '@/lib/utils';
  */
 export function WithdrawCard() {
   const chainId = useChainId();
-  const { address } = useAccount();
+  const { address } = useCanonicalWallet();
   const balance = useUsdcBalance();
   const publicClient = usePublicClient();
   const { client } = useSmartWallets();
@@ -230,7 +231,7 @@ export function WithdrawCard() {
         </div>
       </div>
 
-      {/* ── To bank (Transak) ─────────────────────────────────── */}
+      {/* ── To bank (MoonPay) ─────────────────────────────────── */}
       <div className="mt-3 rounded-[var(--radius-lg)] border border-dashed border-[var(--color-border-default)] bg-[var(--color-background-tertiary)]/40 p-4">
         <div className="flex items-center gap-2">
           <Building2 className="size-4 text-[var(--color-text-tertiary)]" />
@@ -240,10 +241,10 @@ export function WithdrawCard() {
           <Badge variant="default" className="ml-auto">Coming soon</Badge>
         </div>
         <p className="mt-1 text-xs text-[var(--color-text-tertiary)]">
-          Convert USDC to IDR / USD and deposit straight into your bank via
-          Transak. Available once we finish the partner KYB. In the meantime,
-          you can cash out by sending USDC to your exchange account
-          (Indodax, Pintu, Binance) and withdrawing IDR from there.
+          Convert USDC to IDR / USD straight into your bank via MoonPay.
+          Available once we finish the partner KYB onboarding. Today, you
+          can cash out by sending USDC to an exchange (Indodax, Pintu,
+          Binance) on Base network and withdrawing IDR from there.
         </p>
       </div>
     </section>

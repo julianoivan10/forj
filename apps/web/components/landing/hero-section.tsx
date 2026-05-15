@@ -13,6 +13,7 @@ import {
 import Link from 'next/link';
 
 import { PLATFORM_FEE_LABEL } from '@/lib/constants';
+import { useT } from '@/lib/i18n/provider';
 
 /**
  * Hero section.
@@ -40,10 +41,12 @@ import { PLATFORM_FEE_LABEL } from '@/lib/constants';
  *      "alive" without using any imagery.
  */
 
+// Stats reference i18n keys so the labels translate. Values stay raw
+// (USDC, Base, fee %) — those are brand-neutral identifiers.
 const STATS = [
-  { label: 'Platform fee', value: PLATFORM_FEE_LABEL },
-  { label: 'Settlement', value: 'USDC' },
-  { label: 'Network', value: 'Base' },
+  { labelKey: 'stats.platformFee', value: PLATFORM_FEE_LABEL },
+  { labelKey: 'stats.settlement', value: 'USDC' },
+  { labelKey: 'stats.network', value: 'Base' },
 ];
 
 const containerVariants = {
@@ -63,6 +66,7 @@ const itemVariants = {
 };
 
 export function HeroSection() {
+  const t = useT();
   return (
     <section className="relative overflow-hidden pt-28 pb-20 sm:pt-36 sm:pb-28">
       {/* Bauhaus motif background:
@@ -130,16 +134,16 @@ export function HeroSection() {
                 <span className="inline-block size-2 rounded-full bg-[var(--color-brand-primary)]" />
                 <span className="absolute inset-0 inline-block size-2 animate-ping rounded-full bg-[var(--color-brand-primary)] opacity-75" />
               </span>
-              Live on Base &middot; Open beta
+              {t('hero.badge')}
             </motion.span>
 
             <motion.h1
               variants={itemVariants}
               className="mt-6 font-display text-[clamp(2.4rem,5.5vw,4.25rem)] font-extrabold leading-[1.02] tracking-[-0.04em] text-[var(--color-text-primary)]"
             >
-              Work,{' '}
+              {t('hero.title')}{' '}
               <span className="relative inline-block">
-                <span className="text-gradient-brand">forged in trust.</span>
+                <span className="text-gradient-brand">{t('hero.titleAccent')}</span>
                 {/* Hand-drawn cobalt slab underline — Bauhaus mark over
                     the punchline word, gives the headline a craft-pressed
                     feel rather than corporate gradient text. */}
@@ -154,13 +158,7 @@ export function HeroSection() {
               variants={itemVariants}
               className="mt-6 max-w-xl text-base leading-relaxed text-[var(--color-text-secondary)] sm:text-lg"
             >
-              Smart-contract escrow holds the payment until the work lands.
-              Reviews and receipts live on-chain, so a freelancer&rsquo;s track
-              record follows them anywhere. No middlemen, no withdrawal queues —
-              just{' '}
-              <span className="font-semibold text-[var(--color-text-primary)]">
-                a receipt that can&rsquo;t be forged later.
-              </span>
+              {t('hero.body')}
             </motion.p>
 
             <motion.div
@@ -171,7 +169,7 @@ export function HeroSection() {
                 href="/jobs"
                 className="inline-flex h-12 items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-brand-primary)] px-6 text-sm font-semibold text-[#FFFFFF] shadow-[0_0_28px_var(--color-glow-brand)] transition-all duration-200 hover:bg-[#c73e1d] hover:shadow-[0_0_50px_var(--color-glow-brand-strong)] active:scale-[0.97]"
               >
-                Browse open jobs
+                {t('hero.ctaBrowse')}
                 <ArrowRight className="size-4" />
               </Link>
               <Link
@@ -179,7 +177,7 @@ export function HeroSection() {
                 className="inline-flex h-12 items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-background-elevated)]/70 px-6 text-sm font-medium text-[var(--color-text-primary)] backdrop-blur-sm transition-all duration-200 hover:border-[var(--color-border-strong)] hover:bg-[var(--color-background-tertiary)] active:scale-[0.97]"
               >
                 <Briefcase className="size-4 text-[var(--color-brand-primary)]" />
-                Hire on-chain
+                {t('hero.ctaHire')}
               </Link>
             </motion.div>
 
@@ -189,9 +187,9 @@ export function HeroSection() {
               className="mt-10 flex flex-wrap items-center gap-x-8 gap-y-3"
             >
               {STATS.map((stat) => (
-                <div key={stat.label}>
+                <div key={stat.labelKey}>
                   <dt className="text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--color-text-tertiary)]">
-                    {stat.label}
+                    {t(stat.labelKey)}
                   </dt>
                   <dd className="mt-0.5 font-display text-xl font-bold text-[var(--color-text-primary)]">
                     {stat.value}

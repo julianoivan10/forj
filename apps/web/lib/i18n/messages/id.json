@@ -1,0 +1,95 @@
+{
+  "brand": {
+    "name": "Forj",
+    "tagline": "Pekerjaan, ditempa dengan kepercayaan."
+  },
+  "common": {
+    "save": "Simpan",
+    "cancel": "Batal",
+    "submit": "Kirim",
+    "back": "Kembali",
+    "next": "Lanjut",
+    "skip": "Lewati",
+    "delete": "Hapus",
+    "edit": "Ubah",
+    "loading": "Memuat…",
+    "tryAgain": "Coba lagi",
+    "search": "Cari…",
+    "comingSoon": "Segera hadir"
+  },
+  "nav": {
+    "browseJobs": "Cari pekerjaan",
+    "browseServices": "Layanan",
+    "howItWorks": "Cara kerja",
+    "postJob": "Pasang lowongan",
+    "about": "Tentang",
+    "signIn": "Masuk",
+    "signUp": "Daftar",
+    "viewPublicSite": "Lihat situs publik"
+  },
+  "sidebar": {
+    "overview": "Ringkasan",
+    "work": "Pekerjaan",
+    "myJobs": "Lowongan Saya",
+    "savedJobs": "Disimpan",
+    "myProposals": "Proposal Saya",
+    "myServices": "Layanan Saya",
+    "contracts": "Kontrak",
+    "inbox": "Kotak Masuk",
+    "messages": "Pesan",
+    "notifications": "Notifikasi",
+    "account": "Akun",
+    "settings": "Pengaturan"
+  },
+  "hero": {
+    "badge": "Aktif di Base · Beta terbuka",
+    "title": "Pekerjaan,",
+    "titleAccent": "ditempa dengan kepercayaan.",
+    "body": "Escrow smart-contract memegang pembayaran hingga pekerjaan selesai. Ulasan dan tanda terima tersimpan on-chain, sehingga rekam jejak freelancer mengikuti mereka ke mana pun. Tanpa perantara, tanpa antrean penarikan — hanya bukti yang tidak bisa dipalsukan.",
+    "ctaBrowse": "Lihat lowongan",
+    "ctaHire": "Rekrut on-chain"
+  },
+  "stats": {
+    "platformFee": "Biaya platform",
+    "settlement": "Pelunasan",
+    "network": "Jaringan"
+  },
+  "auth": {
+    "welcomeBack": "Selamat datang kembali",
+    "createAccount": "Buat akun Anda",
+    "signInBody": "Masuk ke akun Forj Anda.",
+    "signUpBody": "Pilih cara mendaftar. Kami akan membuatkan wallet untuk Anda secara otomatis.",
+    "joinForj": "Gabung Forj",
+    "newToForj": "Baru di Forj?",
+    "alreadyHaveAccount": "Sudah punya akun?"
+  },
+  "wallet": {
+    "title": "Wallet",
+    "topUp": "Isi ulang wallet",
+    "withdraw": "Tarik dana",
+    "depositAddress": "Alamat deposit Anda",
+    "copyAddress": "Salin alamat",
+    "copied": "Tersalin",
+    "viewOnBasescan": "Lihat di Basescan",
+    "buyWithCard": "Beli USDC dengan kartu",
+    "claimTestnet": "Klaim USDC testnet",
+    "sendOnBaseOnly": "Kirim USDC hanya di {network}",
+    "sendOnBaseOnlyBody": "Mengirim dari chain lain (Ethereum, Polygon, BNB) atau token lain akan menyebabkan dana hilang."
+  },
+  "empty": {
+    "nothingHere": "Belum ada apa-apa di sini",
+    "noJobs": "Belum ada lowongan",
+    "noProposals": "Belum ada proposal",
+    "noContracts": "Belum ada kontrak",
+    "noServices": "Belum ada layanan",
+    "noSavedJobs": "Belum ada bookmark"
+  },
+  "footer": {
+    "platform": "Platform",
+    "onChain": "On-chain",
+    "company": "Perusahaan",
+    "legal": "Legal",
+    "rights": "© {year} Forj. Hak cipta dilindungi.",
+    "builtOn": "Dibangun di atas Base Network"
+  }
+}
