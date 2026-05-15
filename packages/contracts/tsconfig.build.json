@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    // Emit CommonJS so the .js files match the package's `"type": "commonjs"`.
+    // Next.js / Turbopack handles CJS interop natively — the ABI exports are
+    // pure const objects with no runtime logic, so there's zero downside vs
+    // ESM here, and we sidestep the format-mismatch error you'd get if we
+    // emitted ESM into a CJS-typed package.
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "declaration": true,
+    "declarationMap": false,
+    "sourceMap": false,
+    "incremental": false
+  },
+  "include": ["./src"],
+  "exclude": ["node_modules", "dist", "artifacts", "cache", "typechain-types", "test", "scripts", "hardhat.config.ts"]
+}

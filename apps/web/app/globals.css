@@ -1,0 +1,236 @@
+@import 'tailwindcss';
+@import '@forj/tailwind-config/theme.css';
+
+/* Fontshare-loaded General Sans → expose as a CSS variable so the
+   `--font-display` token in theme.css can read it. We declare the
+   variable in @layer base so it cascades to every component. */
+@layer base {
+  :root {
+    --font-general-sans: 'General Sans', var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  }
+}
+
+@layer base {
+  /**
+   * Per-theme tokens for surface effects (glass, dot-grid, ambient bg).
+   * These can't live on the brand-color variables because they're _wash_
+   * tints, not solid colors — they need different alpha + hue per theme
+   * to avoid "dark gradient over white card" clashes.
+   *
+   * Defaults are dark; the `:root[data-theme="light"]` override below
+   * swaps them for light-mode-appropriate values.
+   */
+  :root {
+    color-scheme: dark;
+
+    /* Bauhaus mesh: warm vermillion + cobalt washes,
+       deliberately subtle so they don't overpower content. */
+    --bg-mesh-violet: rgba(46, 79, 224, 0.07);   /* cobalt wash (kept var name for compat) */
+    --bg-mesh-cyan: rgba(220, 76, 42, 0.05);     /* vermillion wash (kept var name for compat) */
+    --glass-bg: rgba(30, 28, 22, 0.72);
+    --dot-color: rgba(234, 229, 218, 0.06);
+    --selection-bg: rgba(220, 76, 42, 0.28);
+  }
+
+  :root[data-theme="light"] {
+    --bg-mesh-violet: rgba(27, 54, 184, 0.04);
+    --bg-mesh-cyan: rgba(199, 62, 29, 0.04);
+    --glass-bg: rgba(255, 250, 240, 0.82);
+    --dot-color: rgba(26, 26, 26, 0.05);
+    --selection-bg: rgba(199, 62, 29, 0.16);
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    background-color: var(--color-background);
+    color: var(--color-text-primary);
+    font-family: var(--font-body);
+    font-weight: 400;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    min-height: 100vh;
+    background-image:
+      radial-gradient(ellipse at top, var(--bg-mesh-violet) 0%, transparent 60%),
+      radial-gradient(ellipse at bottom, var(--bg-mesh-cyan) 0%, transparent 50%);
+    background-attachment: fixed;
+  }
+
+  ::selection {
+    background-color: var(--selection-bg);
+    color: var(--color-text-primary);
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--color-background);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-border-default);
+    border-radius: 10px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-border-strong);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-brand-primary);
+    outline-offset: 2px;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.03em;
+  }
+
+  .text-gradient-brand {
+    background: linear-gradient(
+      135deg,
+      var(--color-brand-primary) 0%,
+      var(--color-brand-secondary) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+
+  .glass {
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid var(--color-border-default);
+  }
+
+  .glow-brand {
+    box-shadow:
+      0 0 0 1px var(--color-border-brand),
+      0 0 40px var(--color-glow-brand);
+  }
+
+  .dot-grid {
+    background-image: radial-gradient(
+      circle at 1px 1px,
+      var(--dot-color) 1px,
+      transparent 0
+    );
+    background-size: 24px 24px;
+  }
+
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      var(--dot-color) 50%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: var(--animate-shimmer);
+  }
+
+  .animate-fade-in-up {
+    animation: var(--animate-fade-in-up);
+  }
+
+  .animate-float {
+    animation: var(--animate-float);
+  }
+
+  /* Long-form prose styling for legal / about pages.
+     Tuned for readability on the new cream / charcoal palette:
+       - line-height a touch looser than body default so paragraphs
+         breathe properly at narrow column widths
+       - h2 uses the display font with a small vermillion eyebrow
+         underscore to anchor each section
+       - lists get more vertical air than Tailwind's defaults */
+  .legal-prose {
+    color: var(--color-text-secondary);
+    font-size: 0.95rem;
+    line-height: 1.75;
+  }
+  .legal-prose .lede {
+    font-size: 1.05rem;
+    color: var(--color-text-primary);
+    margin-bottom: 1.5rem;
+  }
+  .legal-prose h2 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.4rem;
+    letter-spacing: -0.02em;
+    color: var(--color-text-primary);
+    margin-top: 2.5rem;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+  .legal-prose h3 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1.05rem;
+    color: var(--color-text-primary);
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+  }
+  .legal-prose p {
+    margin-bottom: 1rem;
+  }
+  .legal-prose ul {
+    margin: 0.5rem 0 1.25rem 0;
+    padding-left: 1.25rem;
+    list-style: disc;
+  }
+  .legal-prose li {
+    margin-bottom: 0.5rem;
+  }
+  .legal-prose strong {
+    color: var(--color-text-primary);
+    font-weight: 600;
+  }
+  .legal-prose code {
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    padding: 0.1em 0.3em;
+    border-radius: var(--radius-sm);
+    background: var(--color-background-tertiary);
+    color: var(--color-text-primary);
+  }
+  .legal-prose .link,
+  .legal-prose a {
+    color: var(--color-brand-primary);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-thickness: 1px;
+  }
+  .legal-prose .link:hover,
+  .legal-prose a:hover {
+    text-decoration-thickness: 2px;
+  }
+}

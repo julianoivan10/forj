@@ -1,0 +1,44 @@
+{
+  "name": "forj",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Forj — Web3 freelance platform. Work, forged in trust.",
+  "packageManager": "pnpm@10.33.1",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json}\" --ignore-path .gitignore",
+    "format:check": "prettier --check \"**/*.{ts,tsx,md,json}\" --ignore-path .gitignore",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "db:generate": "pnpm --filter @forj/db generate",
+    "db:migrate": "pnpm --filter @forj/db migrate",
+    "db:push": "pnpm --filter @forj/db push",
+    "db:studio": "pnpm --filter @forj/db studio",
+    "web:dev": "pnpm --filter @forj/web dev",
+    "web:build": "pnpm --filter @forj/web build",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.3",
+    "prettier": "^3.4.2",
+    "prettier-plugin-tailwindcss": "^0.6.11",
+    "typescript": "^5.7.3",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.3.0"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "prettier --write"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": [".env"],
+  "globalEnv": [
+    "NODE_ENV",
+    "NEXT_PUBLIC_APP_URL",
+    "NEXT_PUBLIC_APP_NAME",
+    "DATABASE_URL",
+    "DATABASE_URL_UNPOOLED",
+    "NEXT_PUBLIC_PRIVY_APP_ID",
+    "PRIVY_APP_SECRET",
+    "NEXT_PUBLIC_BASE_RPC_URL",
+    "NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL",
+    "NEXT_PUBLIC_CHAIN_ID",
+    "NEXT_PUBLIC_ESCROW_CONTRACT_ADDRESS",
+    "NEXT_PUBLIC_REPUTATION_CONTRACT_ADDRESS",
+    "NEXT_PUBLIC_USDC_ADDRESS",
+    "NEXT_PUBLIC_TRANSAK_API_KEY",
+    "NEXT_PUBLIC_TRANSAK_ENV",
+    "RESEND_API_KEY",
+    "RESEND_FROM_EMAIL",
+    "UPLOADTHING_SECRET",
+    "UPLOADTHING_APP_ID",
+    "PINATA_API_KEY",
+    "PINATA_SECRET_KEY",
+    "NEXT_PUBLIC_PINATA_GATEWAY",
+    "UPSTASH_REDIS_REST_URL",
+    "UPSTASH_REDIS_REST_TOKEN",
+    "INNGEST_EVENT_KEY",
+    "INNGEST_SIGNING_KEY",
+    "NEXT_PUBLIC_SENTRY_DSN",
+    "SENTRY_AUTH_TOKEN"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true,
+      "dependsOn": ["^build"]
+    },
+    "lint": {
+      "dependsOn": ["^lint"]
+    },
+    "typecheck": {
+      "dependsOn": ["^typecheck"]
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"]
+    },
+    "clean": {
+      "cache": false
+    }
+  }
+}

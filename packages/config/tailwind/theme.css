@@ -1,0 +1,251 @@
+/**
+ * Forj Tailwind v4 Theme — Bauhaus Studio palette
+ * CSS-first config — imported in apps/web/app/globals.css
+ *
+ * Design intent:
+ *   The palette is deliberately **anti-Web3-generic**. Where every other
+ *   crypto product reaches for cyan + violet + black, Forj leans on a
+ *   Bauhaus design lineage: warm charcoal (not pure black), paper-warm
+ *   off-whites, and a triad of saturated accents — vermillion, cobalt,
+ *   saffron — that show up sparingly as moments of focus rather than
+ *   wallpaper. The result reads as craftsman / editorial, not techbro.
+ *
+ *   Three accent colours, used by role:
+ *     • Vermillion (primary)  — calls to action, brand emphasis
+ *     • Cobalt    (secondary) — links, info, secondary states
+ *     • Saffron   (highlight) — success, achievement, "earned" moments
+ *
+ *   Both modes share the SAME hue triad, just with brightness tuned to
+ *   the surface — so the brand reads consistently across dark/light.
+ *
+ * Theming mechanics (unchanged from previous palette):
+ *   The `@theme` block defines the dark palette as Tailwind defaults.
+ *   The same vars are redeclared on `:root` so the light override at
+ *   `:root[data-theme="light"]` has equal specificity. Components consume
+ *   `var(--color-...)` so flipping `data-theme` re-themes instantly.
+ */
+
+@theme {
+  /* Backgrounds — warm charcoal, not pure black. Each step gets ~6% brighter. */
+  --color-background: #14130e;
+  --color-background-secondary: #1e1c16;
+  --color-background-tertiary: #25221b;
+  --color-background-elevated: #2a2620;
+
+  /* Brand — Bauhaus triad */
+  --color-brand-primary: #dc4c2a;     /* vermillion: bold action */
+  --color-brand-secondary: #2e4fe0;   /* cobalt: links, secondary */
+  --color-brand-accent: #f2c14e;      /* saffron: highlight, earned */
+
+  /* Text — paper-warm cream, never pure white */
+  --color-text-primary: #eae5da;
+  --color-text-secondary: rgba(234, 229, 218, 0.68);
+  --color-text-tertiary: rgba(234, 229, 218, 0.42);
+  --color-text-disabled: rgba(234, 229, 218, 0.22);
+
+  /* Borders — warm graphite, slightly visible against the charcoal */
+  --color-border-subtle: rgba(234, 229, 218, 0.06);
+  --color-border-default: rgba(234, 229, 218, 0.1);
+  --color-border-strong: rgba(234, 229, 218, 0.2);
+  --color-border-brand: rgba(220, 76, 42, 0.32);
+
+  /* Semantic — re-use the brand triad for cohesion */
+  --color-success: #6b9e3a;           /* moss green for success states */
+  --color-warning: #f2c14e;           /* saffron — same as accent */
+  --color-error: #dc4c2a;             /* vermillion — same as brand primary */
+  --color-info: #2e4fe0;              /* cobalt — same as brand secondary */
+
+  /* Glow — soft vermillion wash for hover/focus halos */
+  --color-glow-brand: rgba(220, 76, 42, 0.14);
+  --color-glow-brand-strong: rgba(220, 76, 42, 0.32);
+  --color-glow-violet: rgba(46, 79, 224, 0.18);
+
+  /* Radius — slightly softer than before for friendlier feel */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  /* Fonts — General Sans (display) + Inter (body) + JetBrains Mono (mono).
+     Fallbacks ensure something readable renders if the font hasn't loaded
+     or the user's network blocked the CSS request. */
+  --font-display: var(--font-general-sans), var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-body: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), var(--font-geist-mono), ui-monospace, monospace;
+
+  /* Animations */
+  --animate-shimmer: shimmer 2s linear infinite;
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-glow-pulse: glow-pulse 2s ease-in-out infinite;
+  --animate-fade-in-up: fade-in-up 0.4s ease-out;
+
+  @keyframes shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
+
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0px);
+    }
+    50% {
+      transform: translateY(-12px);
+    }
+  }
+
+  @keyframes glow-pulse {
+    0%,
+    100% {
+      box-shadow: 0 0 20px rgba(220, 76, 42, 0.14);
+    }
+    50% {
+      box-shadow: 0 0 40px rgba(220, 76, 42, 0.32);
+    }
+  }
+
+  @keyframes fade-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+/* Smooth theme transitions on the few properties that move between modes. */
+/* Excluded: transform/opacity/box-shadow (would lag behind interactions). */
+/* ---------------------------------------------------------------------- */
+
+:root {
+  color-scheme: dark;
+}
+
+:root,
+:root *,
+:root *::before,
+:root *::after {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-duration: 180ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root,
+  :root *,
+  :root *::before,
+  :root *::after {
+    transition: none !important;
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+/* Dark theme — explicit redeclaration on :root so the light override has  */
+/* equal specificity to win against. Identical to @theme defaults above.   */
+/* ---------------------------------------------------------------------- */
+
+:root,
+:root[data-theme="dark"] {
+  --color-background: #14130e;
+  --color-background-secondary: #1e1c16;
+  --color-background-tertiary: #25221b;
+  --color-background-elevated: #2a2620;
+
+  --color-brand-primary: #dc4c2a;
+  --color-brand-secondary: #2e4fe0;
+  --color-brand-accent: #f2c14e;
+
+  --color-text-primary: #eae5da;
+  --color-text-secondary: rgba(234, 229, 218, 0.68);
+  --color-text-tertiary: rgba(234, 229, 218, 0.42);
+  --color-text-disabled: rgba(234, 229, 218, 0.22);
+
+  --color-border-subtle: rgba(234, 229, 218, 0.06);
+  --color-border-default: rgba(234, 229, 218, 0.1);
+  --color-border-strong: rgba(234, 229, 218, 0.2);
+  --color-border-brand: rgba(220, 76, 42, 0.32);
+
+  --color-success: #6b9e3a;
+  --color-warning: #f2c14e;
+  --color-error: #dc4c2a;
+  --color-info: #2e4fe0;
+
+  --color-glow-brand: rgba(220, 76, 42, 0.14);
+  --color-glow-brand-strong: rgba(220, 76, 42, 0.32);
+  --color-glow-violet: rgba(46, 79, 224, 0.18);
+
+  color-scheme: dark;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Light theme — paper cream + warm ink, anchored on the same Bauhaus     */
+/* hue triad shifted darker for legible contrast on light surfaces.        */
+/*                                                                          */
+/* Why warm cream (#f8f4ec) and not pure white:                            */
+/*   Pure white burns out the vermillion accent and makes the typography   */
+/*   look stark — opposite of the editorial / craftsman feel we want.      */
+/*   The cream tint preserves brand cohesion across both modes.             */
+/* ---------------------------------------------------------------------- */
+
+:root[data-theme="light"] {
+  /* Surfaces — three clearly stepped warm tones so cards visibly sit
+     above the page, but never pure white (which clashes with vermillion).
+     The 4-step ladder runs page → card → elevated → tertiary so any
+     "cards stacked on cards" composition still shows separation. */
+  --color-background: #f5efe2;          /* page: warmer cream so it reads as paper */
+  --color-background-secondary: #fdfaf2; /* card: near-white but tinted, kills the white-on-vermillion clash */
+  --color-background-tertiary: #ebe2cf;  /* sunken: input fields, code blocks */
+  --color-background-elevated: #ffffff;  /* highest tier: modals, popovers — only here is real white OK */
+
+  /* Brand — same hue family as dark, shifted darker for AA contrast on
+     warm cream. Vermillion was tuned so vermillion text on cream passes
+     4.6:1; cobalt and saffron pulled in similarly. Saffron-as-yellow on
+     cream is unreadable at any size, so we use it ONLY as a fill for
+     icon backgrounds / small badges and never for text. */
+  --color-brand-primary: #b83a17;        /* deeper vermillion (was c73e1d → too vibrant on cream) */
+  --color-brand-secondary: #1d3aaa;      /* deeper cobalt */
+  --color-brand-accent: #a8821a;         /* ochre — saffron with the chroma turned down for legibility */
+
+  /* Text — warm ink, increased alphas so secondary stays readable on
+     the new cream background (0.72 was on the edge of WCAG AA on cream) */
+  --color-text-primary: #1a1612;         /* warm near-black, slight brown */
+  --color-text-secondary: rgba(26, 22, 18, 0.78);
+  --color-text-tertiary: rgba(26, 22, 18, 0.55);
+  --color-text-disabled: rgba(26, 22, 18, 0.32);
+
+  /* Borders — boost alpha so hairlines actually show on cream (the
+     dark-mode 0.06 carried over to light was effectively invisible).
+     Brand border has more weight too, so card-hover state reads clearly. */
+  --color-border-subtle: rgba(26, 22, 18, 0.08);
+  --color-border-default: rgba(26, 22, 18, 0.14);
+  --color-border-strong: rgba(26, 22, 18, 0.24);
+  --color-border-brand: rgba(184, 58, 23, 0.42);
+
+  /* Semantic — pulled into the warm-earth family so they don't pop out
+     as foreign hues on the cream palette. Forest green for success
+     instead of bright emerald; rust for error stays in the vermillion
+     family so error and brand feel related. */
+  --color-success: #3f6a25;              /* deep moss */
+  --color-warning: #a85d05;              /* burnt amber */
+  --color-error: #a32717;                /* deep rust, distinct from brand */
+  --color-info: #1d3aaa;                 /* same as brand-secondary */
+
+  /* Glows — bumped from "barely there" to "softly there". On cream
+     surfaces a 0.06 alpha drop-shadow is invisible, so hovers felt
+     dead. 0.10–0.18 reads as a gentle warm halo without faking
+     dark-mode neon. */
+  --color-glow-brand: rgba(184, 58, 23, 0.10);
+  --color-glow-brand-strong: rgba(184, 58, 23, 0.20);
+  --color-glow-violet: rgba(29, 58, 170, 0.10);
+
+  color-scheme: light;
+}

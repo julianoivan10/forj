@@ -1,0 +1,15 @@
+{
+  "extends": "@forj/tsconfig/library.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "noEmit": true,
+    // We import React Email templates from `@forj/email`. Even though
+    // the templates aren't rendered as JSX at *this* call site (we invoke
+    // them as plain functions), tsc still parses the resolved `.tsx` source
+    // and needs the JSX transform configured.
+    "jsx": "react-jsx"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

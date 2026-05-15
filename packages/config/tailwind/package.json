@@ -1,0 +1,14 @@
+{
+  "name": "@forj/tailwind-config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./tokens.ts",
+  "files": [
+    "tokens.ts",
+    "theme.css"
+  ],
+  "peerDependencies": {
+    "tailwindcss": "^4.0.0"
+  }
+}
