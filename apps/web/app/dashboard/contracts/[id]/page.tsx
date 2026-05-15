@@ -1309,11 +1309,21 @@ function humanizeWalletError(raw: string): string {
   if (m.includes('user rejected') || m.includes('user denied')) {
     return 'You cancelled the wallet popup. Click the button again when ready.';
   }
-  if (m.includes('insufficient funds') || m.includes('exceeds the balance')) {
-    return "Wallet doesn't have enough ETH to pay for gas. Top up with a few cents of ETH on Base.";
+  // Decode the most common revert: USDC.transferFrom failing because the
+  // smart wallet doesn't hold enough USDC for amount + 5% client fee.
+  // The raw error from viem/Pimlico is hex-encoded so users see a wall
+  // of zeros — translate to a sentence that points them at the fix.
+  if (
+    m.includes('transfer amount exceeds balance') ||
+    m.includes('45524332303a207472616e7366657220616d6f756e74')
+  ) {
+    return "Not enough USDC in your smart wallet. Top up at Settings → Top up your wallet, then retry.";
   }
-  if (m.includes('insufficient allowance') || m.includes('transfer amount exceeds')) {
-    return 'USDC allowance issue. Try the button again — it will re-approve.';
+  if (m.includes('insufficient funds') || m.includes('exceeds the balance')) {
+    return "Wallet doesn't have enough ETH to pay for gas. With smart wallets, Forj sponsors gas — restart the dev server or contact support.";
+  }
+  if (m.includes('insufficient allowance')) {
+    return "USDC approval missing. Try Fund again — it will re-approve the right amount.";
   }
   if (m.includes('nonce') || m.includes('replacement')) {
     return 'Wallet has a stuck transaction. In MetaMask: Settings → Advanced → Reset account, then retry.';
@@ -1321,10 +1331,16 @@ function humanizeWalletError(raw: string): string {
   if (m.includes('chain') || m.includes('network')) {
     return 'Wrong network. Switch your wallet to Base (or Base Sepolia for testnet) and retry.';
   }
-  if (m.includes('reverted')) {
-    return 'The on-chain transaction reverted. Check that you have enough USDC and that the contract is in the right state.';
+  if (m.includes('invalidstatus') || m.includes('notclient') || m.includes('notfreelancer')) {
+    return 'Action not allowed at this contract stage. Refresh the page to see the current state.';
   }
-  return raw.length > 200 ? 'Funding failed. See browser console for details.' : raw;
+  if (m.includes('invaliddeadline')) {
+    return "The delivery deadline is in the past. Edit it from the contract page, then retry.";
+  }
+  if (m.includes('reverted')) {
+    return "On-chain transaction reverted. The most common cause is insufficient USDC — top up at Settings, then retry.";
+  }
+  return raw.length > 200 ? 'Wallet action failed. See browser console for the technical details.' : raw;
 }
 
 function Stat({

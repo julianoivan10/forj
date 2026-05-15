@@ -82,7 +82,14 @@
     "noProposals": "No proposals yet",
     "noContracts": "No contracts yet",
     "noServices": "No services yet",
-    "noSavedJobs": "No bookmarks yet"
+    "noSavedJobs": "No bookmarks yet",
+    "noSavedJobsBody": "Tap the bookmark icon on any job to save it for later. Bookmarks are private — only you see them.",
+    "browseJobs": "Browse jobs"
+  },
+  "saved": {
+    "badge": "Saved jobs",
+    "title": "Your bookmarks",
+    "body": "Jobs you tapped the bookmark on. Quick way to track the ones you want to come back to — they stay here until you remove them or the job is closed."
   },
   "footer": {
     "platform": "Platform",

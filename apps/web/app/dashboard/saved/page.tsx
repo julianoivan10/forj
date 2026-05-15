@@ -7,6 +7,7 @@ import type { AppRouter } from '@forj/api';
 import { Button, EmptyState, Skeleton } from '@/components/ui';
 import { JobCard } from '@/components/jobs/job-card';
 import { api } from '@/lib/trpc/client';
+import { useT } from '@/lib/i18n/provider';
 
 /**
  * Dashboard → Saved jobs. Displays everything the authenticated user
@@ -21,21 +22,20 @@ type SavedItem = inferRouterOutputs<AppRouter>['savedJob']['list']['items'][numb
 
 export default function SavedJobsPage() {
   const list = api.savedJob.list.useQuery({ limit: 30 });
+  const t = useT();
 
   return (
     <div className="mx-auto max-w-5xl">
       <header className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <div className="inline-flex items-center gap-2 rounded-[var(--radius-full)] border border-[var(--color-border-brand)] bg-[var(--color-glow-brand)] px-3 py-1 text-xs font-medium text-[var(--color-brand-primary)]">
-            <Bookmark className="size-3.5" /> Saved jobs
+            <Bookmark className="size-3.5" /> {t('saved.badge')}
           </div>
           <h1 className="mt-3 font-display text-2xl font-extrabold tracking-tight text-[var(--color-text-primary)] sm:text-3xl">
-            Your bookmarks
+            {t('saved.title')}
           </h1>
           <p className="mt-1 max-w-xl text-sm text-[var(--color-text-secondary)]">
-            Jobs you tapped the bookmark on. Quick way to track the ones
-            you want to come back to — they stay here until you remove
-            them or the job is closed.
+            {t('saved.body')}
           </p>
         </div>
       </header>
@@ -51,11 +51,11 @@ export default function SavedJobsPage() {
           <div className="rounded-[var(--radius-xl)] border border-dashed border-[var(--color-border-default)] bg-[var(--color-background-secondary)]/40">
             <EmptyState
               variant="jobs"
-              title="No bookmarks yet"
-              description="Tap the bookmark icon on any job to save it for later. Bookmarks are private — only you see them."
+              title={t('empty.noSavedJobs')}
+              description={t('empty.noSavedJobsBody')}
               action={
                 <Link href="/jobs">
-                  <Button leftIcon={<Search />}>Browse jobs</Button>
+                  <Button leftIcon={<Search />}>{t('empty.browseJobs')}</Button>
                 </Link>
               }
             />

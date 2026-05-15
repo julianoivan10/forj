@@ -1,6 +1,9 @@
+'use client';
+
 import Link from 'next/link';
 import Image from 'next/image';
 import { Github, Twitter } from 'lucide-react';
+import { useT } from '@/lib/i18n/provider';
 
 /**
  * Footer link sections. Every entry resolves to a real route — placeholder
@@ -54,6 +57,18 @@ const FOOTER_SECTIONS = [
 ];
 
 export function Footer() {
+  const t = useT();
+  // Map section title strings to i18n keys at render time. This keeps
+  // the FOOTER_SECTIONS const declarative + grep-able while still
+  // translating the visible labels.
+  const sectionTitle = (raw: string) => {
+    const k = raw.toLowerCase();
+    if (k === 'platform') return t('footer.platform');
+    if (k === 'on-chain') return t('footer.onChain');
+    if (k === 'company') return t('footer.company');
+    if (k === 'legal') return t('footer.legal');
+    return raw;
+  };
   return (
     <footer className="border-t border-[var(--color-border-subtle)] bg-[var(--color-background)]">
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
@@ -100,7 +115,7 @@ export function Footer() {
             {FOOTER_SECTIONS.map((section) => (
               <div key={section.title}>
                 <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">
-                  {section.title}
+                  {sectionTitle(section.title)}
                 </h3>
                 <ul className="mt-4 space-y-2.5">
                   {section.links.map((link) =>
@@ -135,11 +150,11 @@ export function Footer() {
         {/* Bottom bar */}
         <div className="mt-16 flex flex-col items-center gap-4 border-t border-[var(--color-border-subtle)] pt-8 sm:flex-row sm:justify-between">
           <p className="text-xs text-[var(--color-text-tertiary)]">
-            © {new Date().getFullYear()} Forj. All rights reserved.
+            {t('footer.rights', { year: new Date().getFullYear() })}
           </p>
           <div className="flex items-center gap-2 text-xs text-[var(--color-text-tertiary)]">
             <span className="inline-block size-2 rounded-full bg-[var(--color-success)] shadow-[0_0_6px_var(--color-success)]" />
-            Built on Base Network
+            {t('footer.builtOn')}
           </div>
         </div>
       </div>

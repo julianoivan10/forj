@@ -1,0 +1,13 @@
+feat: security audit + ForjEscrowV3 milestone partial release design + i18n progressive
+
+- docs/security/audit-2026-05.md: comprehensive pre-mainnet security audit
+  (smart contract, backend, frontend, ops). 7 contract findings, 6 backend,
+  7 frontend, full trust-model summary, pre-mainnet checklist.
+- ForjEscrow v2: add rescueToken() for misdirected ERC-20s (audit SC-06)
+- ForjEscrowV3.sol: new contract with partialRelease() for milestone payouts
+  + dust-handling + dispute-on-remainder semantics. Compiles cleanly.
+- docs/design/milestone-onchain-v3.md: full design with worked example,
+  edge cases, frontend wiring plan, deploy procedure.
+- humanizeWalletError: decode 'transfer amount exceeds balance' hex to
+  human-readable USDC-topup guidance. Add InvalidStatus / NotClient handling.
+- i18n progressive: Saved Jobs page + Footer + expanded en.json/id.json

@@ -9,48 +9,30 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 
 /**
- * @title  ForjEscrow
+ * @title  ForjEscrowV3
  * @author Forj
- * @notice Two-sided escrow for off-chain freelance work, paid in USDC, with
- *         a **split platform fee**: the client pays a percentage on top of
- *         the agreed work amount, and the freelancer has a separate (smaller)
- *         percentage deducted from their payout at release. Both sides
- *         contribute to the platform fee — both sides feel "fair".
+ * @notice v3 adds **on-chain partial release** so milestone-based contracts
+ *         can flow payouts incrementally rather than holding everything
+ *         until the very end. Same trust model, same fee structure, same
+ *         dispute flow as v2 — just one extra function (`partialRelease`)
+ *         and one extra storage slot per escrow (`released`).
  *
- *         v2 of the WorkChain escrow. Same lifecycle, same dispute model;
- *         the only meaningful change vs v1 is the fee structure, plus the
- *         resulting bookkeeping that a refund must return the full
- *         (amount + clientFee) to the client.
+ *         Backward-compat note: this is a SEPARATE contract deploy. v2
+ *         contracts at their existing addresses keep operating; the
+ *         frontend routes new fund() calls to v3 once `addresses.ts`
+ *         is updated.
  *
- *         Lifecycle:
- *           Created (off-chain) → Funded → Submitted → Released
- *                                                    ↘ Disputed → Resolved
- *                                       ↘ TimedOut → Released (claim) | Refunded
+ *         Audit findings addressed:
+ *           - SC-06: `rescueToken()` for misdirected ERC-20s (excludes USDC).
  *
- *         Funds custody:
- *           - Client approves USDC to this contract for `amount + clientFee`,
- *             then calls `fund()` which pulls the full deposit in one go.
- *           - The contract tracks the agreed `amount` and both fee bps
- *             separately, so each settlement path knows exactly which
- *             buckets to pay out.
- *           - Funds remain held until `release()`, `refund()`,
- *             `claimAfterTimeout()`, or `resolveDispute()` distributes them.
- *
- *         Settlement math (when `amount = $100`, `clientFee = 5%`,
- *         `freelancerFee = 2%`):
- *           Deposited at fund:      $105        (amount + clientFee)
- *           Released to freelancer: $98         (amount - freelancerFee)
- *           Released to platform:   $7          (clientFee + freelancerFee)
- *           Refunded to client:     $105        (full deposit)
- *
- *         Security model (unchanged from v1):
- *           - `nonReentrant` on every state-mutating + value-moving func.
- *           - `Ownable2Step` for arbiter / fee config — two-step prevents
- *             accidental misconfig.
- *           - `Pausable` on funding only — never blocks withdrawals.
- *           - `SafeERC20` for non-standard tokens.
+ *         New surface area (vs v2):
+ *           - `Escrow.released` — cumulative payout so far
+ *           - `partialRelease(escrowId, amount)` — release a slice
+ *           - `MilestoneReleased(escrowId, amount, totalReleasedAfter, feeSliced)`
+ *             event
+ *           - `remaining(escrowId)` view helper
  */
-contract ForjEscrow is Ownable2Step, ReentrancyGuard, Pausable {
+contract ForjEscrowV3 is Ownable2Step, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
     // ─────────────────────────────────────────────────────────────────
@@ -59,32 +41,26 @@ contract ForjEscrow is Ownable2Step, ReentrancyGuard, Pausable {
 
     enum Status {
         None,        // 0 — slot unused
-        Funded,      // 1 — client deposited
-        Submitted,   // 2 — freelancer submitted, awaiting review
-        Released,    // 3 — funds paid to freelancer
-        Refunded,    // 4 — funds returned to client
+        Funded,      // 1 — client deposited; may have partial releases
+        Submitted,   // 2 — freelancer submitted work
+        Released,    // 3 — fully paid out, terminal
+        Refunded,    // 4 — fully refunded to client, terminal
         Disputed,    // 5 — arbiter intervention pending
-        Resolved     // 6 — arbiter split the funds, terminal
+        Resolved     // 6 — arbiter split, terminal
     }
 
     /**
-     * @dev The escrow holds three logical buckets:
-     *        - `amount`     — the agreed work amount (what freelancer is
-     *                          quoting + what client agreed to)
-     *        - `clientFee`  — `amount * clientFeeBps / 10_000`, paid in by
-     *                          the client on top of `amount`
-     *        - `freelancerFeeBps` — applied at release time against `amount`
-     *
-     *      We store the absolute `clientFee` rather than re-deriving it on
-     *      release so a future change to `defaultClientFeeBps` can never
-     *      retroactively alter an already-funded escrow.
+     * @dev v3 adds `released` so partial payouts are tracked per-escrow.
+     *      The invariant is: `released <= amount` at all times. When
+     *      `released == amount`, status flips to Released.
      */
     struct Escrow {
         address client;
         address freelancer;
-        uint128 amount;            // base agreed amount (6-decimal USDC units)
-        uint128 clientFee;         // absolute USDC deposited as the client-side fee
-        uint16  freelancerFeeBps;  // freelancer-side fee, applied at release
+        uint128 amount;            // base agreed amount
+        uint128 clientFee;         // absolute USDC deposited as client-side fee
+        uint128 released;          // cumulative paid out via partialRelease (v3 new)
+        uint16  freelancerFeeBps;
         uint64  fundedAt;
         uint64  submittedAt;
         uint64  deliveryDeadline;
@@ -98,12 +74,8 @@ contract ForjEscrow is Ownable2Step, ReentrancyGuard, Pausable {
 
     IERC20  public immutable usdc;
     address public feeRecipient;
-
-    /// @notice Client-side fee bps applied at funding (paid on top of amount).
-    uint16 public defaultClientFeeBps;
-    /// @notice Freelancer-side fee bps deducted at release.
-    uint16 public defaultFreelancerFeeBps;
-
+    uint16  public defaultClientFeeBps;
+    uint16  public defaultFreelancerFeeBps;
     uint64  public autoReleaseWindow;
     uint256 public nextEscrowId;
     mapping(uint256 => Escrow) public escrows;
@@ -112,8 +84,6 @@ contract ForjEscrow is Ownable2Step, ReentrancyGuard, Pausable {
     // Constants
     // ─────────────────────────────────────────────────────────────────
 
-    /// @dev Individual cap of 10% per side; combined cap is therefore 20%.
-    ///      Generous to leave room for tier experiments without redeploy.
     uint16  public constant MAX_FEE_BPS = 1_000;
     uint64  public constant MIN_AUTO_RELEASE_WINDOW = 1 days;
     uint64  public constant MAX_AUTO_RELEASE_WINDOW = 30 days;
@@ -138,6 +108,18 @@ contract ForjEscrow is Ownable2Step, ReentrancyGuard, Pausable {
         address indexed freelancer,
         uint256 freelancerAmount,
         uint256 totalFee
+    );
+    /**
+     * @dev Emitted on each `partialRelease` call. `totalReleasedAfter` is
+     *      the running cumulative — frontends compute "remaining" as
+     *      `amount - totalReleasedAfter`.
+     */
+    event MilestoneReleased(
+        uint256 indexed escrowId,
+        address indexed freelancer,
+        uint256 milestoneAmount,
+        uint256 totalReleasedAfter,
+        uint256 feeSliced
     );
     event Refunded(uint256 indexed escrowId, address indexed client, uint256 amount);
     event DisputeRaised(uint256 indexed escrowId, address indexed by);
@@ -166,6 +148,8 @@ contract ForjEscrow is Ownable2Step, ReentrancyGuard, Pausable {
     error FeeTooHigh(uint16 bps);
     error WindowOutOfRange(uint64 seconds_);
     error SplitMismatch(uint256 total, uint256 supplied);
+    error AmountExceedsRemaining(uint256 remaining, uint256 requested);
+    error CannotRescueUSDC();
 
     // ─────────────────────────────────────────────────────────────────
     // Constructor
@@ -203,12 +187,6 @@ contract ForjEscrow is Ownable2Step, ReentrancyGuard, Pausable {
     // Mutations: lifecycle
     // ─────────────────────────────────────────────────────────────────
 
-    /**
-     * @notice Client funds an escrow. Pulls `amount + clientFee` USDC via
-     *         `transferFrom` — caller must `approve(this, amount + clientFee)`
-     *         first. Use `quoteFund()` to compute the right approval value.
-     * @return escrowId Newly assigned id.
-     */
     function fund(
         address freelancer,
         uint128 amount,
@@ -227,6 +205,7 @@ contract ForjEscrow is Ownable2Step, ReentrancyGuard, Pausable {
             freelancer: freelancer,
             amount: amount,
             clientFee: clientFee,
+            released: 0,
             freelancerFeeBps: defaultFreelancerFeeBps,
             fundedAt: uint64(block.timestamp),
             submittedAt: 0,
@@ -248,19 +227,11 @@ contract ForjEscrow is Ownable2Step, ReentrancyGuard, Pausable {
         );
     }
 
-    /**
-     * @notice Convenience view for clients: how much USDC do I need to
-     *         approve before calling `fund(amount, …)` ?
-     */
     function quoteFund(uint128 amount) external view returns (uint256 totalIn, uint256 clientFee) {
         clientFee = (uint256(amount) * defaultClientFeeBps) / 10_000;
         totalIn = uint256(amount) + clientFee;
     }
 
-    /**
-     * @notice Freelancer marks work as submitted. Starts the auto-release
-     *         clock so the client can no longer hold funds indefinitely.
-     */
     function submitWork(uint256 escrowId) external nonReentrant {
         Escrow storage e = _mustExist(escrowId);
         if (e.status != Status.Funded) revert InvalidStatus(Status.Funded, e.status);
@@ -273,10 +244,6 @@ contract ForjEscrow is Ownable2Step, ReentrancyGuard, Pausable {
         emit WorkSubmitted(escrowId, e.autoReleaseAt);
     }
 
-    /**
-     * @notice Client asks for changes — flips state back to Funded and clears
-     *         the auto-release clock so the freelancer must re-submit.
-     */
     function requestRevision(uint256 escrowId) external nonReentrant {
         Escrow storage e = _mustExist(escrowId);
         if (e.status != Status.Submitted) revert InvalidStatus(Status.Submitted, e.status);
@@ -290,9 +257,8 @@ contract ForjEscrow is Ownable2Step, ReentrancyGuard, Pausable {
     }
 
     /**
-     * @notice Client approves the work; funds release to freelancer minus the
-     *         freelancer-side fee. Platform takes the combined fee. Allowed
-     *         from either Funded (early release) or Submitted state.
+     * @notice Full release — pays out everything remaining + final fee.
+     *         Identical to v2 semantics: from Funded or Submitted state.
      */
     function release(uint256 escrowId) external nonReentrant {
         Escrow storage e = _mustExist(escrowId);
@@ -301,12 +267,85 @@ contract ForjEscrow is Ownable2Step, ReentrancyGuard, Pausable {
         }
         if (msg.sender != e.client) revert NotClient();
 
-        _releaseTo(escrowId, e);
+        _releaseRemainder(escrowId, e);
     }
 
     /**
-     * @notice Permissionless claim once the auto-release deadline passes.
+     * @notice **Phase 7B — milestone partial release.** Client approves a
+     *         slice (`milestoneAmount`) instead of releasing the entire
+     *         escrow. Pays out:
+     *           - to freelancer: `milestoneAmount - (milestoneAmount * freelancerFeeBps / 10_000)`
+     *           - to feeRecipient: freelancerCut + proportional slice of clientFee
+     *
+     *         The proportional clientFee slice is computed as
+     *         `clientFee * milestoneAmount / amount`. If you partial-release
+     *         half the work, half the client fee gets disbursed; the rest
+     *         stays in the escrow against future partial releases.
+     *
+     *         When `released + milestoneAmount == amount`, the escrow flips
+     *         to `Released` (terminal). Until then it stays in its current
+     *         state (Funded or Submitted) so further partials are allowed.
+     *
+     *         Revision flow: a client who has done some partials and then
+     *         wants changes can still call `requestRevision` from
+     *         Submitted state — it flips back to Funded without
+     *         affecting prior payouts.
      */
+    function partialRelease(uint256 escrowId, uint128 milestoneAmount) external nonReentrant {
+        Escrow storage e = _mustExist(escrowId);
+        if (e.status != Status.Funded && e.status != Status.Submitted) {
+            revert InvalidStatus(Status.Submitted, e.status);
+        }
+        if (msg.sender != e.client) revert NotClient();
+        if (milestoneAmount == 0) revert InvalidAmount();
+
+        uint256 remainingBase = uint256(e.amount) - uint256(e.released);
+        if (milestoneAmount > remainingBase) {
+            revert AmountExceedsRemaining(remainingBase, milestoneAmount);
+        }
+
+        // Per-slice math. Done in uint256 to avoid intermediate overflow
+        // even at the max uint128 amount.
+        uint256 freelancerCut = (uint256(milestoneAmount) * e.freelancerFeeBps) / 10_000;
+        // Proportional clientFee. Multiplied first to preserve precision
+        // for small milestoneAmount / amount ratios.
+        uint256 clientFeeSlice = (uint256(milestoneAmount) * uint256(e.clientFee)) / uint256(e.amount);
+        uint256 toFreelancer = uint256(milestoneAmount) - freelancerCut;
+        uint256 totalFee = freelancerCut + clientFeeSlice;
+
+        // Update storage BEFORE external calls.
+        e.released = uint128(uint256(e.released) + milestoneAmount);
+        // Reduce clientFee balance so future slices can't over-disburse.
+        e.clientFee = uint128(uint256(e.clientFee) - clientFeeSlice);
+
+        // If we've now released the full amount, terminal.
+        if (uint256(e.released) == uint256(e.amount)) {
+            e.status = Status.Released;
+            // Roll any remaining clientFee dust into the final fee sweep
+            // so contract balance for this escrow returns to zero.
+            if (e.clientFee > 0) {
+                totalFee += uint256(e.clientFee);
+                e.clientFee = 0;
+            }
+        }
+
+        if (totalFee > 0) usdc.safeTransfer(feeRecipient, totalFee);
+        usdc.safeTransfer(e.freelancer, toFreelancer);
+
+        emit MilestoneReleased(
+            escrowId,
+            e.freelancer,
+            milestoneAmount,
+            uint256(e.released),
+            totalFee
+        );
+        // If terminal, also emit the v2-compatible Released event so
+        // downstream consumers that only listen for Released still see it.
+        if (e.status == Status.Released) {
+            emit Released(escrowId, e.freelancer, toFreelancer, totalFee);
+        }
+    }
+
     function claimAfterTimeout(uint256 escrowId) external nonReentrant {
         Escrow storage e = _mustExist(escrowId);
         if (e.status != Status.Submitted) revert InvalidStatus(Status.Submitted, e.status);
@@ -314,22 +353,26 @@ contract ForjEscrow is Ownable2Step, ReentrancyGuard, Pausable {
             revert TooEarly(e.autoReleaseAt);
         }
 
-        _releaseTo(escrowId, e);
+        _releaseRemainder(escrowId, e);
     }
 
     /**
-     * @notice Mutual cancel — only valid before any submission. Either party
-     *         can call; the client gets back the full `amount + clientFee`
-     *         (no fee skimmed on cancellations).
+     * @notice Refund the un-released remainder back to the client.
+     *
+     * v3 semantics: refunds whatever hasn't been partially released yet,
+     * INCLUDING any leftover clientFee. Once partial releases have begun,
+     * a refund only returns the rest — you can't undo work already paid.
      */
     function refund(uint256 escrowId) external nonReentrant {
         Escrow storage e = _mustExist(escrowId);
         if (e.status != Status.Funded) revert InvalidStatus(Status.Funded, e.status);
         if (msg.sender != e.client && msg.sender != e.freelancer) revert NotParty();
 
+        uint256 remainingBase = uint256(e.amount) - uint256(e.released);
+        uint256 refundAmt = remainingBase + uint256(e.clientFee);
+
         e.status = Status.Refunded;
-        uint256 refundAmt = uint256(e.amount) + uint256(e.clientFee);
-        e.amount = 0;
+        e.amount = uint128(uint256(e.released)); // zero out base balance left in escrow
         e.clientFee = 0;
 
         usdc.safeTransfer(e.client, refundAmt);
@@ -337,10 +380,6 @@ contract ForjEscrow is Ownable2Step, ReentrancyGuard, Pausable {
         emit Refunded(escrowId, e.client, refundAmt);
     }
 
-    /**
-     * @notice Either party can flag the escrow for arbiter resolution. Funds
-     *         are frozen — only `resolveDispute` (owner-only) can move them.
-     */
     function raiseDispute(uint256 escrowId) external nonReentrant {
         Escrow storage e = _mustExist(escrowId);
         if (e.status != Status.Funded && e.status != Status.Submitted) {
@@ -358,9 +397,9 @@ contract ForjEscrow is Ownable2Step, ReentrancyGuard, Pausable {
     // ─────────────────────────────────────────────────────────────────
 
     /**
-     * @notice Arbiter splits the disputed escrow. The three amounts must sum
-     *         to the FULL deposit (amount + clientFee) since that's what the
-     *         contract actually holds.
+     * @notice Arbiter resolves a disputed escrow over the REMAINING balance
+     *         (i.e. what hasn't been partially released yet, plus the
+     *         remaining clientFee). Past partial releases stay paid out.
      */
     function resolveDispute(
         uint256 escrowId,
@@ -371,12 +410,13 @@ contract ForjEscrow is Ownable2Step, ReentrancyGuard, Pausable {
         Escrow storage e = _mustExist(escrowId);
         if (e.status != Status.Disputed) revert InvalidStatus(Status.Disputed, e.status);
 
-        uint256 totalHeld = uint256(e.amount) + uint256(e.clientFee);
+        uint256 remainingBase = uint256(e.amount) - uint256(e.released);
+        uint256 totalHeld = remainingBase + uint256(e.clientFee);
         uint256 sum = toFreelancer + toClient + toFee;
         if (sum != totalHeld) revert SplitMismatch(totalHeld, sum);
 
         e.status = Status.Resolved;
-        e.amount = 0;
+        e.amount = uint128(uint256(e.released));
         e.clientFee = 0;
 
         if (toFreelancer > 0) usdc.safeTransfer(e.freelancer, toFreelancer);
@@ -396,12 +436,6 @@ contract ForjEscrow is Ownable2Step, ReentrancyGuard, Pausable {
         feeRecipient = next;
     }
 
-    /**
-     * @notice Update both default fee bps in one call so admin can't
-     *         leave them inconsistent (e.g. set client to 10% then forget
-     *         to set freelancer). Existing escrows are not affected —
-     *         they snapshotted their fees at fund time.
-     */
     function setDefaultFees(uint16 clientBps, uint16 freelancerBps) external onlyOwner {
         if (clientBps > MAX_FEE_BPS) revert FeeTooHigh(clientBps);
         if (freelancerBps > MAX_FEE_BPS) revert FeeTooHigh(freelancerBps);
@@ -422,30 +456,19 @@ contract ForjEscrow is Ownable2Step, ReentrancyGuard, Pausable {
         _pause();
     }
 
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
     /**
-     * @notice Rescue tokens accidentally sent to this contract.
-     *
-     * EXPLICITLY EXCLUDES the protocol's USDC — that token is held on
-     * behalf of users in funded escrows, and only the lifecycle
-     * functions (`release` / `refund` / `claimAfterTimeout` /
-     * `resolveDispute`) may move it. Allowing owner to sweep USDC
-     * would break the trust model.
-     *
-     * Any other ERC-20 sent here (mistakenly, or by an attacker dusting
-     * the contract address with airdropped tokens) can be recovered by
-     * the owner. The recipient is whoever the owner specifies — not
-     * hardcoded to `feeRecipient` so a freshly-discovered token can be
-     * returned to its rightful owner if known.
+     * @notice Rescue tokens accidentally sent to this contract. Excludes
+     *         USDC by design — the protocol's settlement token is held
+     *         on behalf of users and only the lifecycle paths may move it.
      */
-    error CannotRescueUSDC();
     function rescueToken(IERC20 token, address to, uint256 amount) external onlyOwner {
         if (address(token) == address(usdc)) revert CannotRescueUSDC();
         if (to == address(0)) revert InvalidAddress();
         token.safeTransfer(to, amount);
-    }
-
-    function unpause() external onlyOwner {
-        _unpause();
     }
 
     // ─────────────────────────────────────────────────────────────────
@@ -463,6 +486,15 @@ contract ForjEscrow is Ownable2Step, ReentrancyGuard, Pausable {
                block.timestamp >= e.autoReleaseAt;
     }
 
+    /**
+     * @notice How much base amount is still un-released. Frontends use this
+     *         to render "remaining" against the bar / progress widget.
+     */
+    function remaining(uint256 escrowId) external view returns (uint256) {
+        Escrow storage e = escrows[escrowId];
+        return uint256(e.amount) - uint256(e.released);
+    }
+
     // ─────────────────────────────────────────────────────────────────
     // Internals
     // ─────────────────────────────────────────────────────────────────
@@ -473,20 +505,23 @@ contract ForjEscrow is Ownable2Step, ReentrancyGuard, Pausable {
     }
 
     /**
-     * @dev Computes the freelancer payout + combined platform fee and
-     *      moves USDC. The fee bucket is `clientFee + freelancerCut`
-     *      (the latter is `amount * freelancerFeeBps / 10_000`).
+     * @dev Release-everything-remaining helper. Shared between `release()`
+     *      (client approval) and `claimAfterTimeout()` (auto-release).
+     *      Computes pro-rated fees over whatever's left.
      */
-    function _releaseTo(uint256 escrowId, Escrow storage e) private {
-        uint256 amount = uint256(e.amount);
-        uint256 clientFee = uint256(e.clientFee);
-        uint256 freelancerCut = (amount * e.freelancerFeeBps) / 10_000;
-        uint256 toFreelancer = amount - freelancerCut;
-        uint256 totalFee = clientFee + freelancerCut;
+    function _releaseRemainder(uint256 escrowId, Escrow storage e) private {
+        uint256 remainingBase = uint256(e.amount) - uint256(e.released);
+        uint256 freelancerCut = (remainingBase * e.freelancerFeeBps) / 10_000;
+        uint256 toFreelancer = remainingBase - freelancerCut;
+        // Sweep all remaining clientFee — partial releases may have left
+        // a dust amount here that we should disburse with the final cut.
+        uint256 totalFee = freelancerCut + uint256(e.clientFee);
 
         e.status = Status.Released;
-        e.amount = 0;
+        e.released = e.amount; // mark fully released
         e.clientFee = 0;
+        // We keep `amount` as-is for historical lookup; the source of
+        // truth for "is this escrow paid out" is `status === Released`.
 
         if (totalFee > 0) usdc.safeTransfer(feeRecipient, totalFee);
         usdc.safeTransfer(e.freelancer, toFreelancer);

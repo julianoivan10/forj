@@ -82,7 +82,14 @@
     "noProposals": "Belum ada proposal",
     "noContracts": "Belum ada kontrak",
     "noServices": "Belum ada layanan",
-    "noSavedJobs": "Belum ada bookmark"
+    "noSavedJobs": "Belum ada bookmark",
+    "noSavedJobsBody": "Ketuk ikon bookmark di lowongan mana pun untuk menyimpannya. Bookmark bersifat pribadi — hanya Anda yang melihatnya.",
+    "browseJobs": "Cari lowongan"
+  },
+  "saved": {
+    "badge": "Lowongan disimpan",
+    "title": "Bookmark Anda",
+    "body": "Lowongan yang Anda bookmark. Cara cepat melacak yang ingin Anda kunjungi kembali — tetap di sini sampai Anda hapus atau lowongan ditutup."
   },
   "footer": {
     "platform": "Platform",
