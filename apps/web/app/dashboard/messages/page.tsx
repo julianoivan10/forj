@@ -36,11 +36,28 @@ export default function DashboardMessagesPage() {
   useEffect(() => {
     if (!toUserId) return;
     if (handledRef.current === toUserId) return;
+    // Basic UUID v4-ish shape check so we don't fire getOrStart on
+    // garbage query strings (e.g. someone pasting `?to=hello`). The
+    // server would reject too, but a client-side fail-fast keeps the
+    // toast meaningful instead of a generic zod error.
+    if (!/^[0-9a-f-]{36}$/i.test(toUserId)) {
+      handledRef.current = toUserId;
+      toast.error('That looks like an invalid user id.');
+      router.replace('/dashboard/messages');
+      return;
+    }
     handledRef.current = toUserId;
     let cancelled = false;
     (async () => {
       try {
-        const { conversationId } = await utils.client.message.getOrStart.query({
+        // `utils.<router>.<procedure>.fetch(input)` is the tRPC v11
+        // React-Query wrapper for an imperative fetch — uses the
+        // existing query client + httpBatchLink, returns the data.
+        // (The `utils.client.<...>.query()` pattern works in some
+        // tRPC builds but not this RC — earlier version of this code
+        // used it and the promise just sat pending forever, leaving
+        // the spinner stuck.)
+        const { conversationId } = await utils.message.getOrStart.fetch({
           userId: toUserId,
         });
         if (cancelled) return;

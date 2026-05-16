@@ -1,9 +1,39 @@
 import { TRPCError } from '@trpc/server';
-import { and, asc, desc, eq, messages, or, sql, users } from '@forj/db';
+import { and, asc, desc, eq, isNull, messages, or, sql, users } from '@forj/db';
 import { z } from 'zod';
 import { checkRateLimit, RATE_LIMITS } from '../middleware/rate-limit';
 import { notify } from '../services/notifications';
 import { createTRPCRouter, protectedProcedure } from '../trpc';
+
+/**
+ * Whitelist of hostnames the message attachment URL can point to.
+ * Sole upload paths today are UploadThing (`utfs.io`) and Pinata's
+ * public IPFS gateway (`gateway.pinata.cloud`) — same set as
+ * `next.config.ts` remotePatterns. Anything else gets rejected to
+ * prevent attackers from pasting phishing/malware/`javascript:` URLs
+ * as "attachments" that the inbox would surface as clickable links.
+ *
+ * Add new domains here AFTER vetting them — don't accept arbitrary
+ * URLs even if zod `.url()` would parse them. (`z.string().url()`
+ * accepts `javascript:`, `data:`, `ftp:`, etc.)
+ */
+const ALLOWED_FILE_HOSTS = new Set<string>([
+  'utfs.io',
+  'gateway.pinata.cloud',
+]);
+
+function isAllowedFileUrl(raw: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return false;
+  }
+  // Reject any non-https scheme. Blocks `javascript:`, `data:`, plain
+  // `http:`, etc. — even if the hostname happens to match.
+  if (url.protocol !== 'https:') return false;
+  return ALLOWED_FILE_HOSTS.has(url.hostname);
+}
 
 /**
  * Deterministic conversation ID for a pair of users.
@@ -60,9 +90,12 @@ export const messageRouter = createTRPCRouter({
           columns: { id: true, content: true, senderId: true, receiverId: true, createdAt: true, type: true },
         });
         const otherId = otherParty(c.conversationId, me);
+        // Skip soft-deleted accounts — the inbox shouldn't surface
+        // conversations with anonymised users. They're filtered out
+        // by the `.filter(d => d.other !== null)` below.
         const other = otherId
           ? await ctx.db.query.users.findFirst({
-              where: eq(users.id, otherId),
+              where: and(eq(users.id, otherId), isNull(users.deletedAt)),
               columns: {
                 id: true,
                 username: true,
@@ -141,8 +174,12 @@ export const messageRouter = createTRPCRouter({
       if (input.userId === ctx.user.id) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Cannot message yourself' });
       }
+      // Hide soft-deleted users — opening a chat with a deleted account
+      // would surface their (now anonymised) profile and let you fire
+      // messages they'll never see. NOT_FOUND for both "no such user"
+      // and "user left" keeps the account-deletion private.
       const other = await ctx.db.query.users.findFirst({
-        where: eq(users.id, input.userId),
+        where: and(eq(users.id, input.userId), isNull(users.deletedAt)),
         columns: { id: true, username: true, displayName: true, avatarUrl: true },
       });
       if (!other) throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found' });
@@ -161,13 +198,39 @@ export const messageRouter = createTRPCRouter({
       if (input.receiverId === ctx.user.id) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Cannot message yourself' });
       }
+      if (input.fileUrl && !isAllowedFileUrl(input.fileUrl)) {
+        // Caught at the boundary so attackers can't bypass via the
+        // tRPC client. zod's `.url()` accepts `javascript:` / `data:`
+        // / any host — we need a stricter whitelist for anything
+        // that becomes a clickable `<a href>` in the inbox UI.
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Attachment URL must come from an approved host (UploadThing or Pinata).',
+        });
+      }
+      // Global per-sender rate limit (60/min) covers floods. We also
+      // throttle per-(sender, receiver) pair so a single user can't
+      // DM-bomb a specific person within the global budget. 10 per
+      // minute is enough for a natural chat pace + still permits
+      // bursts of short replies.
       await checkRateLimit(ctx.user.id, 'messageSend', RATE_LIMITS.messageSend);
+      await checkRateLimit(
+        `${ctx.user.id}:${input.receiverId}`,
+        'messageSendToReceiver',
+        RATE_LIMITS.messageSendToReceiver,
+      );
 
       const receiver = await ctx.db.query.users.findFirst({
-        where: eq(users.id, input.receiverId),
+        where: and(eq(users.id, input.receiverId), isNull(users.deletedAt)),
         columns: { id: true },
       });
-      if (!receiver) throw new TRPCError({ code: 'NOT_FOUND', message: 'Receiver not found' });
+      if (!receiver) {
+        // NOT_FOUND covers both "no such user" and "user soft-deleted
+        // their account". We don't expose which — same surface for
+        // both keeps account-deletion private (you can tell someone
+        // exists by trying to DM them, but you can't tell they left).
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Receiver not found' });
+      }
 
       const conversationId = conversationIdFor(ctx.user.id, input.receiverId);
       const [message] = await ctx.db

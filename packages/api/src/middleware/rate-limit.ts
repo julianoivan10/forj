@@ -55,6 +55,13 @@ export const RATE_LIMITS = {
   jobCreate: { requests: 10, window: '1 h' } satisfies RateLimitConfig,
   proposalCreate: { requests: 20, window: '1 h' } satisfies RateLimitConfig,
   messageSend: { requests: 60, window: '1 m' } satisfies RateLimitConfig,
+  // Per-(sender, receiver) throttle layered on top of `messageSend`.
+  // Stops one user from DM-bombing a specific person within the
+  // global 60/min budget (which would be 60 in-app notifications +
+  // 60 bell badges for the victim, plenty for harassment). 10 per
+  // minute matches a natural rapid chat exchange + permits short
+  // bursts of replies without nagging.
+  messageSendToReceiver: { requests: 10, window: '1 m' } satisfies RateLimitConfig,
   jobSearch: { requests: 100, window: '1 m' } satisfies RateLimitConfig,
   auth: { requests: 20, window: '1 m' } satisfies RateLimitConfig,
   // Reviews are gated by state machine (one per (contract, reviewer) via DB

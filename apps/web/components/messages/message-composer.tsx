@@ -100,10 +100,13 @@ function ComposerBody({ onClose }: { onClose: () => void }) {
   const handlePick = async (targetUserId: string) => {
     setStartingFor(targetUserId);
     try {
-      // getOrStart is a query, not a mutation — it just resolves the
-      // deterministic conversation id without writing anything. Fetch
-      // imperatively here so we can navigate on success.
-      const { conversationId } = await utils.client.message.getOrStart.query({
+      // getOrStart is a query, not a mutation — resolves the
+      // deterministic conversation id without writing anything. Use
+      // the tRPC react-query imperative fetch helper, not the raw
+      // vanilla client — the `utils.client.<...>.query()` pattern
+      // doesn't return a settled promise in this tRPC v11 RC build
+      // (caused the original composer to hang forever on user-pick).
+      const { conversationId } = await utils.message.getOrStart.fetch({
         userId: targetUserId,
       });
       onClose();
