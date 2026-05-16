@@ -146,37 +146,15 @@ an account-takeover vector), UI surface, support runbook.
 
 ---
 
-## 4. Lazy freelancer escalation (~2-3h)
+## 4. Lazy freelancer escalation — ✅ SHIPPED (`c80755d`)
 
-There's already a design doc at `docs/design/role-and-mode.md`. The
-mode switcher we shipped (client/freelancer/both) is the foundation —
-this builds on it.
+Apply-to-job flow now gates on `useHasFreelancerProfile()`. Missing
+skills/rate → `EscalationModal` collects them, promotes role, then
+auto-opens the proposal form.
 
-**Goal**: client-mode users can browse, save, and message freelancers
-without ever "becoming" a freelancer. The moment they hit an action
-that requires freelancer profile fields (apply to a job, publish a
-service), we promote them lazily.
-
-**Promotion path**:
-1. Client-mode user clicks "Apply" on a job.
-2. We check: do they have skills, hourly rate, bio filled in?
-3. If no → modal: "Complete your freelancer profile (3 fields) to
-   apply" with the missing fields inline. They fill, we save, the
-   apply tRPC call fires. Their role flips to `both` if it was
-   `client`.
-4. If they skip the modal, the apply is abandoned — never silently
-   half-apply.
-
-**Files to touch**:
-- New: `apps/web/components/freelancer/escalation-modal.tsx`
-- Update: `apps/web/app/jobs/[slug]/page.tsx` apply button — gate on
-  user.role + required profile fields.
-- Update: `apps/web/app/dashboard/services/new/page.tsx` publish path.
-- API: no new procedures, just use existing `user.updateProfile` +
-  `user.setRole`.
-
-Match the same lazy pattern wherever a client-mode action crosses into
-freelancer territory.
+**Remaining**: wire `intent="publish-service"` on
+`/dashboard/services/new` if/when that page is streamlined (currently
+it collects skills inline so doesn't need the gate yet).
 
 ---
 
@@ -200,7 +178,7 @@ From the mobile audit not addressed this session (all "low" severity):
 
 ---
 
-## Index of past commits this session
+## Index of commits across the working day
 
 | Commit | What |
 |---|---|
@@ -209,15 +187,19 @@ From the mobile audit not addressed this session (all "low" severity):
 | `9ef988d` | Safe TX Builder JSON for acceptOwnership |
 | `27704b2` | Message notifications wired + inbox.summary combine |
 | `8e82556` | Mobile critical + medium fixes |
+| `5b24c62` | This doc — next-session backlog (now updated) |
+| `e54f497` | Messages `?to=` query handler + Contracts moved into Hiring/Work + Both mode dropped from selector |
+| `c80755d` | Lazy freelancer escalation modal + apply-to-job gating |
 
-On-chain state on Base Sepolia after this session:
+On-chain state on Base Sepolia (current, multisig fully in control):
 
 ```
 ForjEscrow v2  0x09fb654f30637258d30e3f03b06f5370a0cf8954
-  owner          0xA3B1d4ad2E756571530c9e54D4A5c52eb9E71052 (deployer, pending handoff)
-  pendingOwner   0x2332373BEB6A13A61bf45881808327406DD9D5e6 (multisig)
-  feeRecipient   0x2332373BEB6A13A61bf45881808327406DD9D5e6 (multisig)
+  owner          0x2332373BEB6A13A61bf45881808327406DD9D5e6  ✅ multisig
+  pendingOwner   0x0000…0000                                  ✅ cleared
+  feeRecipient   0x2332373BEB6A13A61bf45881808327406DD9D5e6  ✅ multisig
 ```
 
-Next action: multisig calls `acceptOwnership()` via the JSON in
-`packages/contracts/scripts/safe-batches/accept-ownership-sepolia.json`.
+acceptOwnership was executed by the Safe — handoff complete. Future
+admin operations (pause, dispute resolution, fee changes, etc.) now
+require the multisig threshold of signatures.
