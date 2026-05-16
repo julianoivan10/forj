@@ -99,39 +99,19 @@ The Safe needs to call `acceptOwnership()` on the escrow. From the Safe UI:
 
 ### Faster: Safe Transaction Builder JSON
 
-If you'd rather upload a pre-built batch instead of clicking through
-the UI, save the following to `accept-ownership.json` and import via
-**Apps → Transaction Builder → Load batch from file** inside the Safe
-on Base Sepolia. (Already pinned to chainId 84532.)
+A pre-built batch lives at
+[`packages/contracts/scripts/safe-batches/accept-ownership-sepolia.json`](../packages/contracts/scripts/safe-batches/accept-ownership-sepolia.json).
 
-```json
-{
-  "version": "1.0",
-  "chainId": "84532",
-  "createdAt": 1747000000000,
-  "meta": {
-    "name": "Forj — Accept ownership of ForjEscrow v2",
-    "description": "Safe acceptOwnership() on ForjEscrow at 0x09fb654f30637258d30e3f03b06f5370a0cf8954. Finalises the Ownable2Step handoff from deployer EOA to this Safe."
-  },
-  "transactions": [
-    {
-      "to": "0x09fb654f30637258d30e3f03b06f5370a0cf8954",
-      "value": "0",
-      "data": "0x79ba5097",
-      "contractMethod": {
-        "inputs": [],
-        "name": "acceptOwnership",
-        "payable": false
-      },
-      "contractInputsValues": {}
-    }
-  ]
-}
-```
+In `app.safe.global`:
+**Apps → Transaction Builder → Load batch from file** → drag this file in.
 
-`data: 0x79ba5097` is the function selector for `acceptOwnership()` —
-no arguments, so no input encoding is needed. The Safe verifies this
-matches the named method on the verified contract before signing.
+The batch is pinned to chainId 84532 (Base Sepolia), so the Safe will
+refuse to load it if you're connected to the wrong network. The single
+transaction calls `acceptOwnership()` on the escrow at
+`0x09fb654f30637258d30e3f03b06f5370a0cf8954` — `data: 0x79ba5097` is
+the function selector, no arguments needed. Safe decodes and shows the
+named method before you sign (because the source is verified on
+Basescan).
 
 ---
 

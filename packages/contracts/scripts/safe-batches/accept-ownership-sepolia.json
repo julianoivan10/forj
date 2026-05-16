@@ -1,0 +1,24 @@
+{
+  "version": "1.0",
+  "chainId": "84532",
+  "createdAt": 1747000000000,
+  "meta": {
+    "name": "Forj — Accept ownership of ForjEscrow v2 (Base Sepolia)",
+    "description": "Finalises the Ownable2Step handoff. The deployer EOA already called transferOwnership(multisig) — this batch executes acceptOwnership() from the Safe, making this multisig the new owner() of ForjEscrow v2 at 0x09fb654f30637258d30e3f03b06f5370a0cf8954.",
+    "txBuilderVersion": "1.16.0",
+    "createdFromSafeAddress": "0x2332373BEB6A13A61bf45881808327406DD9D5e6"
+  },
+  "transactions": [
+    {
+      "to": "0x09fb654f30637258d30e3f03b06f5370a0cf8954",
+      "value": "0",
+      "data": "0x79ba5097",
+      "contractMethod": {
+        "inputs": [],
+        "name": "acceptOwnership",
+        "payable": false
+      },
+      "contractInputsValues": null
+    }
+  ]
+}
