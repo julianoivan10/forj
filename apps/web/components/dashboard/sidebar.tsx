@@ -131,20 +131,20 @@ function SidebarContent() {
   const visibleGroups = NAV_GROUPS.filter((g) => GROUPS_BY_MODE[mode].has(g.id));
 
   const isAuthed = Boolean(user?.id);
-  const msgUnread = api.message.unreadCount.useQuery(undefined, {
+  // One poll for both badges. `inbox.summary` runs the two COUNT(*)
+  // queries in parallel server-side and returns them together — same
+  // freshness as before but half the auth + HTTP overhead. 25s sits
+  // between the previous 20s (messages) and 30s (notifications) — a
+  // compromise that's snappy for chat without spamming the API.
+  const inboxSummary = api.inbox.summary.useQuery(undefined, {
     enabled: isAuthed,
-    refetchInterval: isAuthed ? 20_000 : false,
-    refetchOnWindowFocus: true,
-  });
-  const notifUnread = api.notification.unreadCount.useQuery(undefined, {
-    enabled: isAuthed,
-    refetchInterval: isAuthed ? 30_000 : false,
+    refetchInterval: isAuthed ? 25_000 : false,
     refetchOnWindowFocus: true,
   });
 
   const badgeCounts: Record<string, number> = {
-    messages: msgUnread.data?.count ?? 0,
-    notifications: notifUnread.data?.count ?? 0,
+    messages: inboxSummary.data?.messages ?? 0,
+    notifications: inboxSummary.data?.notifications ?? 0,
   };
 
   return (

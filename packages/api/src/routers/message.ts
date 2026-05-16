@@ -2,6 +2,7 @@ import { TRPCError } from '@trpc/server';
 import { and, asc, desc, eq, messages, or, sql, users } from '@forj/db';
 import { z } from 'zod';
 import { checkRateLimit, RATE_LIMITS } from '../middleware/rate-limit';
+import { notify } from '../services/notifications';
 import { createTRPCRouter, protectedProcedure } from '../trpc';
 
 /**
@@ -168,10 +169,11 @@ export const messageRouter = createTRPCRouter({
       });
       if (!receiver) throw new TRPCError({ code: 'NOT_FOUND', message: 'Receiver not found' });
 
+      const conversationId = conversationIdFor(ctx.user.id, input.receiverId);
       const [message] = await ctx.db
         .insert(messages)
         .values({
-          conversationId: conversationIdFor(ctx.user.id, input.receiverId),
+          conversationId,
           senderId: ctx.user.id,
           receiverId: input.receiverId,
           content: input.content,
@@ -179,6 +181,34 @@ export const messageRouter = createTRPCRouter({
           type: input.fileUrl ? 'file' : 'text',
         })
         .returning();
+
+      // Notify receiver — in-app only. `email-dispatch.ts` deliberately
+      // skips `message_received` (would be noisy), so this just lands a
+      // row in `notifications` for the bell badge + notifications page.
+      // Best-effort: notify() swallows its own errors, message stays sent
+      // even if the notification insert hiccups.
+      const senderName =
+        ctx.user.displayName ?? ctx.user.username ?? 'Someone';
+      const preview = input.fileUrl
+        ? 'Sent you an attachment'
+        : input.content.length > 80
+          ? `${input.content.slice(0, 77)}…`
+          : input.content;
+      await notify({
+        userId: input.receiverId,
+        actorId: ctx.user.id,
+        type: 'message_received',
+        title: `New message from ${senderName}`,
+        body: preview,
+        entityType: 'message',
+        entityId: message.id,
+        actionUrl: `/dashboard/messages/${encodeURIComponent(conversationId)}`,
+        metadata: {
+          conversationId,
+          senderUsername: ctx.user.username ?? null,
+        },
+      });
+
       return message;
     }),
 

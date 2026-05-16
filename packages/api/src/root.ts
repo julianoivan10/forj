@@ -1,5 +1,6 @@
 import { adminRouter } from './routers/admin';
 import { contractRouter } from './routers/contract';
+import { inboxRouter } from './routers/inbox';
 import { jobRouter } from './routers/job';
 import { messageRouter } from './routers/message';
 import { notificationRouter } from './routers/notification';
@@ -20,6 +21,7 @@ export const appRouter = createTRPCRouter({
   message: messageRouter,
   review: reviewRouter,
   notification: notificationRouter,
+  inbox: inboxRouter,
   service: serviceRouter,
   savedJob: savedJobRouter,
   savedService: savedServiceRouter,
