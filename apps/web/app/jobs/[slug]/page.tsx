@@ -17,6 +17,10 @@ import {
 } from 'lucide-react';
 import { Badge, Button, Skeleton, UserAvatar } from '@/components/ui';
 import { ProposalForm } from '@/components/jobs/proposal-form';
+import {
+  EscalationModal,
+  useHasFreelancerProfile,
+} from '@/components/freelancer/escalation-modal';
 import { useAuth, hasPrivy } from '@/hooks/use-auth';
 import { api } from '@/lib/trpc/client';
 import { formatUSD } from '@/lib/utils';
@@ -36,7 +40,16 @@ export default function JobDetailPage() {
 
   const incrementView = api.job.incrementView.useMutation();
   const [proposalOpen, setProposalOpen] = useState(false);
+  const [escalationOpen, setEscalationOpen] = useState(false);
   const [viewTracked, setViewTracked] = useState(false);
+
+  // Lazy freelancer escalation gate. The button below intercepts the
+  // proposal-form trigger when the user lacks the freelancer fields
+  // (skills, hourly rate) — see docs/design/role-and-mode.md §5.
+  // After the modal completes, this hook re-evaluates because we
+  // invalidate `user.me` inside the modal's success path, so the next
+  // click flows straight into the proposal form.
+  const hasFreelancerProfile = useHasFreelancerProfile();
 
   useEffect(() => {
     if (job.data && !viewTracked) {
@@ -105,8 +118,19 @@ export default function JobDetailPage() {
         </Link>
       );
     }
+    // First-time freelancer? Route the click through escalation
+    // instead of jumping straight into the proposal form. The escalation
+    // modal collects skills + hourly rate, then we re-enter this
+    // branch on the next render (because we invalidate user.me) and
+    // the button opens the proposal form directly.
     return (
-      <Button size="lg" leftIcon={<Send />} onClick={() => setProposalOpen(true)}>
+      <Button
+        size="lg"
+        leftIcon={<Send />}
+        onClick={() =>
+          hasFreelancerProfile ? setProposalOpen(true) : setEscalationOpen(true)
+        }
+      >
         Submit a proposal
       </Button>
     );
@@ -266,6 +290,19 @@ export default function JobDetailPage() {
         jobBudgetType={j.budgetType}
         jobBudgetMin={j.budgetMin}
         jobBudgetMax={j.budgetMax}
+      />
+
+      <EscalationModal
+        open={escalationOpen}
+        onOpenChange={setEscalationOpen}
+        intent="apply-to-job"
+        onComplete={() => {
+          // Profile saved + user.me invalidated inside the modal —
+          // hop directly into the proposal form so the user doesn't
+          // have to click "Submit a proposal" a second time.
+          setEscalationOpen(false);
+          setProposalOpen(true);
+        }}
       />
     </div>
   );
