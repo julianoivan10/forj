@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { MessageSquare, Search } from 'lucide-react';
+import { MessageSquare } from 'lucide-react';
 import { api } from '@/lib/trpc/client';
 import { Badge, Skeleton, UserAvatar, Button } from '@/components/ui';
+import { MessageComposer } from '@/components/messages/message-composer';
 import { cn } from '@/lib/utils';
 
 export default function DashboardMessagesPage() {
@@ -16,13 +17,20 @@ export default function DashboardMessagesPage() {
 
   return (
     <div className="mx-auto max-w-4xl">
-      <div>
-        <h1 className="font-display text-2xl font-extrabold tracking-tight text-[var(--color-text-primary)] sm:text-3xl">
-          Messages
-        </h1>
-        <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-          Chat with clients and freelancers about live engagements.
-        </p>
+      {/* Header row: title + composer CTA. The CTA sits next to the title
+          so users land on /dashboard/messages and immediately see how to
+          start a new thread — instead of having to bounce out to a
+          freelancer profile or proposal first. */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="font-display text-2xl font-extrabold tracking-tight text-[var(--color-text-primary)] sm:text-3xl">
+            Messages
+          </h1>
+          <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
+            Chat with clients and freelancers about live engagements.
+          </p>
+        </div>
+        <MessageComposer />
       </div>
 
       <div className="mt-8">
@@ -45,12 +53,10 @@ export default function DashboardMessagesPage() {
         ) : !convos.data.length ? (
           <EmptyBox
             title="No conversations yet"
-            description="Start a conversation from a freelancer profile or an active proposal. New messages will appear here."
+            description="Tap New message above to find someone by username, or jump in from a freelancer profile or active proposal."
             action={
               <Link href="/jobs">
-                <Button leftIcon={<Search />} variant="secondary">
-                  Browse jobs
-                </Button>
+                <Button variant="secondary">Browse open jobs</Button>
               </Link>
             }
           />

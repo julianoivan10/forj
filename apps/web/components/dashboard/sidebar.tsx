@@ -24,32 +24,18 @@ import { ModeSwitcher } from '@/components/dashboard/mode-switcher';
 import { cn } from '@/lib/utils';
 
 /**
- * Mode-aware nav visibility. Keyed on i18n label keys so we don't
- * stringly-couple to specific labels. `both` mode keeps the existing
- * behaviour (everything visible).
+ * Mode-aware group visibility. We filter whole *groups* (not individual
+ * items) by mode — that way "Saved Jobs" lives under the same Work
+ * header it semantically belongs to (freelancer perspective), and
+ * "Saved Services" sits under Hiring (client perspective). In `both`
+ * mode the user sees BOTH groups, which is the whole point of Both —
+ * a visible split between hiring activity and freelancing activity.
  */
-const VISIBLE_BY_MODE: Record<'client' | 'freelancer', Set<string>> = {
-  client: new Set([
-    'sidebar.overview',
-    'sidebar.myJobs',
-    'sidebar.savedServices',  // buyer-side bookmarks
-    // Saved Jobs hidden in client mode (worker affordance)
-    'sidebar.contracts',
-    'sidebar.messages',
-    'sidebar.notifications',
-    'sidebar.settings',
-  ]),
-  freelancer: new Set([
-    'sidebar.overview',
-    'sidebar.myProposals',
-    'sidebar.myServices',
-    'sidebar.savedJobs',
-    // Saved Services hidden in freelancer mode (buyer affordance)
-    'sidebar.contracts',
-    'sidebar.messages',
-    'sidebar.notifications',
-    'sidebar.settings',
-  ]),
+type Mode = 'client' | 'freelancer' | 'both';
+const GROUPS_BY_MODE: Record<Mode, Set<string>> = {
+  client: new Set(['overview', 'hiring', 'contracts', 'inbox', 'account']),
+  freelancer: new Set(['overview', 'work', 'contracts', 'inbox', 'account']),
+  both: new Set(['overview', 'hiring', 'work', 'contracts', 'inbox', 'account']),
 };
 
 interface NavItem {
@@ -58,10 +44,6 @@ interface NavItem {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   badgeKey?: 'messages' | 'notifications';
-  /** Indents the row + drops the icon size — used for "Saved Jobs" as
-   *  a sub-item of "My Jobs". Keeps related entries grouped without
-   *  needing a separate expand/collapse mechanism. */
-  sub?: boolean;
   /** Optional tour-target hook so `dashboard-tour.tsx` can highlight
    *  this row without relying on `href` selectors that change with
    *  routing renames. */
@@ -69,33 +51,57 @@ interface NavItem {
 }
 
 interface NavGroup {
-  /** i18n key for the section header; null hides the header (for the
-   *  first untitled group that holds Overview). */
+  /** Stable id used by `GROUPS_BY_MODE` to decide visibility. */
+  id: string;
+  /** i18n key for the section header; null hides the header. */
   titleKey: string | null;
   items: NavItem[];
 }
 
 // Grouped navigation. Each group renders with a SMALL CAPS header above
-// it (except the headerless first group) and a 4px gap between groups.
-// Labels reference i18n keys (`sidebar.*`) — resolved per-render so
-// switching language re-renders with the new strings without a reload.
+// it (except headerless ones) and a 4px gap between groups. Labels
+// reference i18n keys (`sidebar.*`) — resolved per-render so switching
+// language re-renders with the new strings without a reload.
+//
+// IMPORTANT: groups are split by *perspective*, not by feature. "My
+// Jobs" and "Saved Services" both live under HIRING (client-side
+// affordances). "My Proposals", "My Services", "Saved Jobs" live under
+// WORK (freelancer-side). This is the structural fix for the earlier
+// bug where "Saved Jobs" was mis-nested as a sub-item of "My Jobs" —
+// it never belonged there because they're for opposite roles.
 const NAV_GROUPS: NavGroup[] = [
   {
+    id: 'overview',
     titleKey: null,
     items: [{ labelKey: 'sidebar.overview', href: '/dashboard', icon: LayoutDashboard }],
   },
   {
-    titleKey: 'sidebar.work',
+    id: 'hiring',
+    titleKey: 'sidebar.hiring',
     items: [
       { labelKey: 'sidebar.myJobs', href: '/dashboard/jobs', icon: Briefcase },
-      { labelKey: 'sidebar.savedJobs', href: '/dashboard/saved', icon: Bookmark, sub: true, dataTour: 'sidebar-saved' },
-      { labelKey: 'sidebar.myProposals', href: '/dashboard/proposals', icon: FileText },
-      { labelKey: 'sidebar.myServices', href: '/dashboard/services', icon: Sparkles },
-      { labelKey: 'sidebar.savedServices', href: '/dashboard/saved-services', icon: Bookmark, sub: true },
-      { labelKey: 'sidebar.contracts', href: '/dashboard/contracts', icon: FileSignature },
+      { labelKey: 'sidebar.savedServices', href: '/dashboard/saved-services', icon: Bookmark },
     ],
   },
   {
+    id: 'work',
+    titleKey: 'sidebar.work',
+    items: [
+      { labelKey: 'sidebar.myProposals', href: '/dashboard/proposals', icon: FileText },
+      { labelKey: 'sidebar.myServices', href: '/dashboard/services', icon: Sparkles },
+      { labelKey: 'sidebar.savedJobs', href: '/dashboard/saved', icon: Bookmark, dataTour: 'sidebar-saved' },
+    ],
+  },
+  {
+    // Contracts is shared between client and freelancer perspectives,
+    // so it gets its own headerless group between the two work groups
+    // and inbox. Always visible regardless of mode.
+    id: 'contracts',
+    titleKey: null,
+    items: [{ labelKey: 'sidebar.contracts', href: '/dashboard/contracts', icon: FileSignature }],
+  },
+  {
+    id: 'inbox',
     titleKey: 'sidebar.inbox',
     items: [
       { labelKey: 'sidebar.messages', href: '/dashboard/messages', icon: MessageSquare, badgeKey: 'messages' },
@@ -103,6 +109,7 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    id: 'account',
     titleKey: 'sidebar.account',
     items: [
       { labelKey: 'sidebar.settings', href: '/dashboard/settings', icon: Settings, dataTour: 'sidebar-settings' },
@@ -115,17 +122,13 @@ function SidebarContent() {
   const { user } = useAuth();
   const t = useT();
 
-  const mode = (user?.role ?? 'both') as 'client' | 'freelancer' | 'both';
-  // Filter nav groups by mode. `both` keeps the full list. Other modes
-  // hide items irrelevant to that perspective (e.g. Saved Jobs hidden
-  // for client-mode users — that's a worker affordance).
-  const visibleGroups =
-    mode === 'both'
-      ? NAV_GROUPS
-      : NAV_GROUPS.map((g) => ({
-          ...g,
-          items: g.items.filter((item) => VISIBLE_BY_MODE[mode].has(item.labelKey)),
-        })).filter((g) => g.items.length > 0);
+  const mode = (user?.role ?? 'both') as Mode;
+  // Filter nav groups by mode via `GROUPS_BY_MODE`. `both` shows
+  // everything — *the visible split between Hiring and Work IS the
+  // point of Both mode*; users get a clear at-a-glance view of both
+  // perspectives. `client` hides the Work group entirely (and vice
+  // versa) so the sidebar stays uncluttered for single-role users.
+  const visibleGroups = NAV_GROUPS.filter((g) => GROUPS_BY_MODE[mode].has(g.id));
 
   const isAuthed = Boolean(user?.id);
   const msgUnread = api.message.unreadCount.useQuery(undefined, {
@@ -192,11 +195,7 @@ function SidebarContent() {
                       // accent that reads as "you are here". Hover state
                       // shows a faded version of the same slab so the
                       // transition feels mechanical, not animated soup.
-                      'group relative flex items-center gap-3 rounded-[var(--radius-md)] py-2 text-sm font-medium transition-all',
-                      // Sub-items get pushed in by ~14px and use a smaller
-                      // icon so the parent/child hierarchy reads at a glance
-                      // without needing a connector line.
-                      item.sub ? 'pl-8 pr-3' : 'px-3',
+                      'group relative flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm font-medium transition-all',
                       isActive
                         ? 'bg-[var(--color-brand-primary)]/10 text-[var(--color-brand-primary)]'
                         : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-text-primary)]/[0.04] hover:text-[var(--color-text-primary)]',
@@ -213,7 +212,7 @@ function SidebarContent() {
                     />
                     <item.icon
                       className={cn(
-                        item.sub ? 'size-4' : 'size-[18px]',
+                        'size-[18px]',
                         isActive ? 'text-[var(--color-brand-primary)]' : 'opacity-60',
                       )}
                     />

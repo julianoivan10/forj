@@ -41,28 +41,50 @@ function getDashboardTitle(pathname: string): string {
 }
 
 // Mobile drawer mirrors the desktop sidebar's grouped layout so users
-// get a consistent mental model across breakpoints. Same groups: Work,
-// Inbox, Account; same nesting (Saved Jobs under My Jobs).
+// get a consistent mental model across breakpoints. Same Hiring/Work
+// perspective split; same group ids drive the same mode-aware filter.
+type Mode = 'client' | 'freelancer' | 'both';
 interface MobileNavItemKeyed {
   labelKey: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
-  sub?: boolean;
 }
-const MOBILE_NAV: Array<{ titleKey: string | null; items: MobileNavItemKeyed[] }> = [
-  { titleKey: null, items: [{ labelKey: 'sidebar.overview', href: '/dashboard', icon: LayoutDashboard }] },
+interface MobileNavGroup {
+  id: string;
+  titleKey: string | null;
+  items: MobileNavItemKeyed[];
+}
+const GROUPS_BY_MODE: Record<Mode, Set<string>> = {
+  client: new Set(['overview', 'hiring', 'contracts', 'inbox', 'account']),
+  freelancer: new Set(['overview', 'work', 'contracts', 'inbox', 'account']),
+  both: new Set(['overview', 'hiring', 'work', 'contracts', 'inbox', 'account']),
+};
+const MOBILE_NAV: MobileNavGroup[] = [
+  { id: 'overview', titleKey: null, items: [{ labelKey: 'sidebar.overview', href: '/dashboard', icon: LayoutDashboard }] },
   {
-    titleKey: 'sidebar.work',
+    id: 'hiring',
+    titleKey: 'sidebar.hiring',
     items: [
       { labelKey: 'sidebar.myJobs', href: '/dashboard/jobs', icon: Briefcase },
-      { labelKey: 'sidebar.savedJobs', href: '/dashboard/saved', icon: Bookmark, sub: true },
-      { labelKey: 'sidebar.myProposals', href: '/dashboard/proposals', icon: FileText },
-      { labelKey: 'sidebar.myServices', href: '/dashboard/services', icon: Sparkles },
-      { labelKey: 'sidebar.savedServices', href: '/dashboard/saved-services', icon: Bookmark, sub: true },
-      { labelKey: 'sidebar.contracts', href: '/dashboard/contracts', icon: FileSignature },
+      { labelKey: 'sidebar.savedServices', href: '/dashboard/saved-services', icon: Bookmark },
     ],
   },
   {
+    id: 'work',
+    titleKey: 'sidebar.work',
+    items: [
+      { labelKey: 'sidebar.myProposals', href: '/dashboard/proposals', icon: FileText },
+      { labelKey: 'sidebar.myServices', href: '/dashboard/services', icon: Sparkles },
+      { labelKey: 'sidebar.savedJobs', href: '/dashboard/saved', icon: Bookmark },
+    ],
+  },
+  {
+    id: 'contracts',
+    titleKey: null,
+    items: [{ labelKey: 'sidebar.contracts', href: '/dashboard/contracts', icon: FileSignature }],
+  },
+  {
+    id: 'inbox',
     titleKey: 'sidebar.inbox',
     items: [
       { labelKey: 'sidebar.messages', href: '/dashboard/messages', icon: MessageSquare },
@@ -70,6 +92,7 @@ const MOBILE_NAV: Array<{ titleKey: string | null; items: MobileNavItemKeyed[] }
     ],
   },
   {
+    id: 'account',
     titleKey: 'sidebar.account',
     items: [{ labelKey: 'sidebar.settings', href: '/dashboard/settings', icon: Settings }],
   },
@@ -142,8 +165,11 @@ export function DashboardHeader() {
                 </button>
               </div>
               <nav className="overflow-y-auto p-3">
-                {MOBILE_NAV.map((group, gi) => (
-                  <div key={gi} className={cn(gi > 0 && 'mt-5')}>
+                {MOBILE_NAV.filter((g) => {
+                  const mode = (user?.role ?? 'both') as Mode;
+                  return GROUPS_BY_MODE[mode].has(g.id);
+                }).map((group, gi) => (
+                  <div key={group.id} className={cn(gi > 0 && 'mt-5')}>
                     {group.titleKey ? (
                       <p className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">
                         {t(group.titleKey)}
@@ -160,8 +186,7 @@ export function DashboardHeader() {
                             href={item.href}
                             onClick={() => setMobileOpen(false)}
                             className={cn(
-                              'group relative flex items-center gap-3 rounded-[var(--radius-md)] py-2 text-sm font-medium transition-all',
-                              item.sub ? 'pl-8 pr-3' : 'px-3',
+                              'group relative flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm font-medium transition-all',
                               isActive
                                 ? 'bg-[var(--color-brand-primary)]/10 text-[var(--color-brand-primary)]'
                                 : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-text-primary)]/[0.04] hover:text-[var(--color-text-primary)]',
@@ -176,7 +201,7 @@ export function DashboardHeader() {
                             />
                             <item.icon
                               className={cn(
-                                item.sub ? 'size-4' : 'size-[18px]',
+                                'size-[18px]',
                                 isActive ? 'text-[var(--color-brand-primary)]' : 'opacity-60',
                               )}
                             />
