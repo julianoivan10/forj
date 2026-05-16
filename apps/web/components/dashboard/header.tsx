@@ -55,9 +55,9 @@ interface MobileNavGroup {
   items: MobileNavItemKeyed[];
 }
 const GROUPS_BY_MODE: Record<Mode, Set<string>> = {
-  client: new Set(['overview', 'hiring', 'contracts', 'inbox', 'account']),
-  freelancer: new Set(['overview', 'work', 'contracts', 'inbox', 'account']),
-  both: new Set(['overview', 'hiring', 'work', 'contracts', 'inbox', 'account']),
+  client: new Set(['overview', 'hiring', 'inbox', 'account']),
+  freelancer: new Set(['overview', 'work', 'inbox', 'account']),
+  both: new Set(['overview', 'hiring', 'work', 'inbox', 'account']),
 };
 const MOBILE_NAV: MobileNavGroup[] = [
   { id: 'overview', titleKey: null, items: [{ labelKey: 'sidebar.overview', href: '/dashboard', icon: LayoutDashboard }] },
@@ -67,6 +67,7 @@ const MOBILE_NAV: MobileNavGroup[] = [
     items: [
       { labelKey: 'sidebar.myJobs', href: '/dashboard/jobs', icon: Briefcase },
       { labelKey: 'sidebar.savedServices', href: '/dashboard/saved-services', icon: Bookmark },
+      { labelKey: 'sidebar.contracts', href: '/dashboard/contracts', icon: FileSignature },
     ],
   },
   {
@@ -76,12 +77,8 @@ const MOBILE_NAV: MobileNavGroup[] = [
       { labelKey: 'sidebar.myProposals', href: '/dashboard/proposals', icon: FileText },
       { labelKey: 'sidebar.myServices', href: '/dashboard/services', icon: Sparkles },
       { labelKey: 'sidebar.savedJobs', href: '/dashboard/saved', icon: Bookmark },
+      { labelKey: 'sidebar.contracts', href: '/dashboard/contracts', icon: FileSignature },
     ],
-  },
-  {
-    id: 'contracts',
-    titleKey: null,
-    items: [{ labelKey: 'sidebar.contracts', href: '/dashboard/contracts', icon: FileSignature }],
   },
   {
     id: 'inbox',
@@ -174,7 +171,8 @@ export function DashboardHeader() {
               </div>
               <nav className="overflow-y-auto p-3">
                 {MOBILE_NAV.filter((g) => {
-                  const mode = (user?.role ?? 'both') as Mode;
+                  // Default 'client' during auth load — see sidebar.tsx for full rationale.
+                  const mode = (user?.role ?? 'client') as Mode;
                   return GROUPS_BY_MODE[mode].has(g.id);
                 }).map((group, gi) => (
                   <div key={group.id} className={cn(gi > 0 && 'mt-5')}>

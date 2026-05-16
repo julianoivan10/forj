@@ -8,9 +8,19 @@ import { api } from '@/lib/trpc/client';
 import { cn } from '@/lib/utils';
 
 /**
- * Mode switcher — toggles the user's preferred dashboard view between
- * Client / Freelancer / Both. Surfaces the choice they made at signup
- * (or last switched to) and lets them flip without re-onboarding.
+ * Mode switcher — toggles the user's dashboard perspective between
+ * Client and Freelancer.
+ *
+ * Why only two modes now (was three): "Both" used to be a third option
+ * that showed every nav group at once. In practice it added cognitive
+ * load ("am I hiring or working right now?") without unlocking any
+ * action — users can flip between the two perspectives in one click,
+ * so a permanent merged view was redundant. The `'both'` enum value
+ * stays in the DB column for backward compatibility with users
+ * provisioned under the old 3-mode system; the sidebar still shows
+ * everything for those legacy rows, but the dropdown only offers the
+ * two real choices going forward. The moment a legacy `'both'` user
+ * picks Client or Freelancer, their row migrates to that single value.
  *
  * Mode is a soft UI gate: it filters the sidebar nav and tunes some
  * dashboard hero copy, but it doesn't restrict what the user can DO.
@@ -24,6 +34,9 @@ import { cn } from '@/lib/utils';
  */
 
 type Mode = 'client' | 'freelancer' | 'both';
+/** Modes that appear in the dropdown. `'both'` is intentionally
+ *  excluded — see component header for the design rationale. */
+type SelectableMode = 'client' | 'freelancer';
 
 const MODE_META: Record<
   Mode,
@@ -40,11 +53,17 @@ const MODE_META: Record<
     icon: Hammer,
   },
   both: {
-    label: 'Both',
-    description: 'See everything',
+    // Trigger label for legacy `'both'` users — shown only on the
+    // collapsed dropdown button, never in the option list. Tells them
+    // they're seeing the unfiltered view; selecting Client or
+    // Freelancer migrates them off `'both'`.
+    label: 'All',
+    description: 'See everything (legacy)',
     icon: Layers,
   },
 };
+
+const SELECTABLE_MODES: SelectableMode[] = ['client', 'freelancer'];
 
 export function ModeSwitcher() {
   const { user } = useAuth();
@@ -69,7 +88,10 @@ export function ModeSwitcher() {
   });
 
   if (!user) return null;
-  const mode = (user.role ?? 'both') as Mode;
+  // Default 'client' — DB column has NOT NULL with default 'client'
+  // already, this fallback is just belt-and-braces for in-flight cache
+  // states. Legacy 'both' users still get their stored value here.
+  const mode = (user.role ?? 'client') as Mode;
   const current = MODE_META[mode];
   const CurrentIcon = current.icon;
 
@@ -103,7 +125,7 @@ export function ModeSwitcher() {
           sideOffset={6}
           className="z-50 w-[244px] overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-background-secondary)] p-1.5 shadow-xl shadow-black/30"
         >
-          {(Object.keys(MODE_META) as Mode[]).map((m) => {
+          {SELECTABLE_MODES.map((m) => {
             const meta = MODE_META[m];
             const Icon = meta.icon;
             const isActive = m === mode;
@@ -160,8 +182,10 @@ export function ModeSwitcher() {
 }
 
 /** Helper for sidebar/header filters. Returns the user's current mode
- *  or `'both'` as fallback when user data isn't loaded yet. */
+ *  or `'client'` as fallback when user data isn't loaded yet (was
+ *  `'both'` historically — see component header for the design
+ *  rationale on dropping Both as a user-selectable mode). */
 export function useUserMode(): Mode {
   const { user } = useAuth();
-  return (user?.role ?? 'both') as Mode;
+  return (user?.role ?? 'client') as Mode;
 }

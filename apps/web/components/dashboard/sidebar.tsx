@@ -32,10 +32,16 @@ import { cn } from '@/lib/utils';
  * a visible split between hiring activity and freelancing activity.
  */
 type Mode = 'client' | 'freelancer' | 'both';
+// Group visibility per mode. `contracts` is intentionally NOT a
+// standalone group anymore — it lives inside whichever work group is
+// visible (Hiring for clients, Work for freelancers). That removes the
+// orphan "Contracts" row that floated between Work and Inbox without a
+// header. In `both` mode (legacy enum value, no longer user-selectable),
+// Contracts appears under Hiring to keep it deterministic.
 const GROUPS_BY_MODE: Record<Mode, Set<string>> = {
-  client: new Set(['overview', 'hiring', 'contracts', 'inbox', 'account']),
-  freelancer: new Set(['overview', 'work', 'contracts', 'inbox', 'account']),
-  both: new Set(['overview', 'hiring', 'work', 'contracts', 'inbox', 'account']),
+  client: new Set(['overview', 'hiring', 'inbox', 'account']),
+  freelancer: new Set(['overview', 'work', 'inbox', 'account']),
+  both: new Set(['overview', 'hiring', 'work', 'inbox', 'account']),
 };
 
 interface NavItem {
@@ -76,29 +82,33 @@ const NAV_GROUPS: NavGroup[] = [
     items: [{ labelKey: 'sidebar.overview', href: '/dashboard', icon: LayoutDashboard }],
   },
   {
+    // Hiring group — client perspective. Contracts lives here as the
+    // terminal step (active engagements from posted jobs). Putting it
+    // inside the group instead of floating below avoids the orphan
+    // row that had no header above it.
     id: 'hiring',
     titleKey: 'sidebar.hiring',
     items: [
       { labelKey: 'sidebar.myJobs', href: '/dashboard/jobs', icon: Briefcase },
       { labelKey: 'sidebar.savedServices', href: '/dashboard/saved-services', icon: Bookmark },
+      { labelKey: 'sidebar.contracts', href: '/dashboard/contracts', icon: FileSignature },
     ],
   },
   {
+    // Work group — freelancer perspective. Same pattern: Contracts is
+    // the terminal step (active engagements from accepted proposals).
+    // Single Contracts row in the DOM either way — GROUPS_BY_MODE picks
+    // which group is rendered, and in `both` mode both groups render
+    // but the second Contracts row is the same /dashboard/contracts
+    // page, so it's fine for either link to be the entry point.
     id: 'work',
     titleKey: 'sidebar.work',
     items: [
       { labelKey: 'sidebar.myProposals', href: '/dashboard/proposals', icon: FileText },
       { labelKey: 'sidebar.myServices', href: '/dashboard/services', icon: Sparkles },
       { labelKey: 'sidebar.savedJobs', href: '/dashboard/saved', icon: Bookmark, dataTour: 'sidebar-saved' },
+      { labelKey: 'sidebar.contracts', href: '/dashboard/contracts', icon: FileSignature },
     ],
-  },
-  {
-    // Contracts is shared between client and freelancer perspectives,
-    // so it gets its own headerless group between the two work groups
-    // and inbox. Always visible regardless of mode.
-    id: 'contracts',
-    titleKey: null,
-    items: [{ labelKey: 'sidebar.contracts', href: '/dashboard/contracts', icon: FileSignature }],
   },
   {
     id: 'inbox',
@@ -122,12 +132,13 @@ function SidebarContent() {
   const { user } = useAuth();
   const t = useT();
 
-  const mode = (user?.role ?? 'both') as Mode;
-  // Filter nav groups by mode via `GROUPS_BY_MODE`. `both` shows
-  // everything — *the visible split between Hiring and Work IS the
-  // point of Both mode*; users get a clear at-a-glance view of both
-  // perspectives. `client` hides the Work group entirely (and vice
-  // versa) so the sidebar stays uncluttered for single-role users.
+  // Default `client` when user/role is still loading. Was `'both'`
+  // historically, but that flashed every nav group during auth load
+  // — visually noisy on new tabs. Clients are the more common entry
+  // point (browsing > applying), so client perspective is the safer
+  // brief flash. Legacy users with role `'both'` still see all groups
+  // because GROUPS_BY_MODE.both is intentionally retained.
+  const mode = (user?.role ?? 'client') as Mode;
   const visibleGroups = NAV_GROUPS.filter((g) => GROUPS_BY_MODE[mode].has(g.id));
 
   const isAuthed = Boolean(user?.id);

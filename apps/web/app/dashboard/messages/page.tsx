@@ -1,19 +1,83 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { MessageSquare } from 'lucide-react';
+import { toast } from 'sonner';
 import { api } from '@/lib/trpc/client';
-import { Badge, Skeleton, UserAvatar, Button } from '@/components/ui';
+import { Badge, Skeleton, UserAvatar, Button, Spinner } from '@/components/ui';
 import { MessageComposer } from '@/components/messages/message-composer';
 import { cn } from '@/lib/utils';
 
 export default function DashboardMessagesPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const utils = api.useUtils();
+  // `?to=<userId>` shortcut — legacy entry points (contract detail
+  // "Message" button, future emails, external links) push to
+  // /dashboard/messages?to=<other-user-id>. We resolve that into the
+  // deterministic conversation id and replace the URL so back-button
+  // doesn't bounce the user into a getOrStart loop.
+  //
+  // Why a ref guard: this effect runs on every render. Without the
+  // guard, a slow getOrStart + a fast re-render could fire two
+  // overlapping queries and produce two router.replace calls.
+  const toUserId = searchParams.get('to');
+  const handledRef = useRef<string | null>(null);
+
   // Light polling so new messages/unread counts trickle in without a manual refresh.
   const convos = api.message.getConversations.useQuery(undefined, {
     refetchInterval: 15_000,
     refetchOnWindowFocus: true,
   });
+
+  useEffect(() => {
+    if (!toUserId) return;
+    if (handledRef.current === toUserId) return;
+    handledRef.current = toUserId;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { conversationId } = await utils.client.message.getOrStart.query({
+          userId: toUserId,
+        });
+        if (cancelled) return;
+        router.replace(
+          `/dashboard/messages/${encodeURIComponent(conversationId)}`,
+        );
+      } catch (err) {
+        if (cancelled) return;
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : 'Could not open conversation with that user',
+        );
+        // Strip the ?to= so the toast doesn't fire again on the next
+        // render / navigation. Stay on the inbox view.
+        router.replace('/dashboard/messages');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [toUserId, router, utils]);
+
+  // While we're resolving ?to= → conversation id, show a thin loading
+  // strip instead of the empty state. Otherwise users see "No
+  // conversations yet" for a beat, which is misleading because we *are*
+  // about to navigate them into a thread.
+  if (toUserId && handledRef.current === toUserId) {
+    return (
+      <div className="mx-auto flex max-w-4xl flex-col items-center justify-center gap-3 py-20 text-center">
+        <Spinner />
+        <p className="text-sm text-[var(--color-text-secondary)]">
+          Opening conversation…
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-4xl">
