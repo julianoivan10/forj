@@ -28,6 +28,8 @@
     "preflight:sepolia": "hardhat run scripts/preflight.ts --network baseSepolia",
     "deploy:sepolia": "hardhat run scripts/deploy.ts --network baseSepolia",
     "deploy:base": "hardhat run scripts/deploy.ts --network base",
+    "transfer-ownership:sepolia": "hardhat run scripts/transfer-ownership.ts --network baseSepolia",
+    "transfer-ownership:base": "hardhat run scripts/transfer-ownership.ts --network base",
     "verify:sepolia": "hardhat verify --network baseSepolia",
     "node:local": "hardhat node",
     "typecheck": "tsc --noEmit -p tsconfig.lib.json",

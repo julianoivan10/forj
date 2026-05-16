@@ -36,6 +36,28 @@ https://sepolia.basescan.org/address/0x2332373BEB6A13A61bf45881808327406DD9D5e6
 This **prevents you from accidentally transferring to a wrong address
 you can't sign from**. The Safe must accept itself.
 
+### Option A — automated (recommended)
+
+```bash
+# from repo root, with NEXT_PUBLIC_MULTISIG_ADDRESS already set in .env
+pnpm --filter @forj/contracts transfer-ownership:sepolia
+```
+
+The script reads `NEXT_PUBLIC_MULTISIG_ADDRESS` from `.env`, uses
+`DEPLOYER_PRIVATE_KEY` to sign, and:
+
+1. Sets the fee recipient to the multisig (immediate effect; safe to
+   do before ownership transfer because deployer is still owner).
+2. Calls `transferOwnership(multisig)` — first leg of Ownable2Step.
+
+It prints before/after state for both `feeRecipient` and `owner` /
+`pendingOwner`. **Idempotent**: re-running after success is a no-op.
+
+When it finishes, `pendingOwner()` is the multisig but `owner()` is
+still the deployer — go to Step 2 to finalise from the Safe.
+
+### Option B — manual via Basescan
+
 Go to https://sepolia.basescan.org/address/0x09fb654f30637258d30e3f03b06f5370a0cf8954#writeContract
 
 1. Click **Connect to Web3** → connect MetaMask signed in as deployer
@@ -47,6 +69,10 @@ Go to https://sepolia.basescan.org/address/0x09fb654f30637258d30e3f03b06f5370a0c
    - On Basescan, click **Read Contract** tab
    - `pendingOwner()` should now return `0x2332373BEB…D9D5e6`
    - `owner()` still returns the deployer (transfer is two-step)
+
+(If you use Option A you've already done Step 3 — the fee recipient
+update — as part of the script, so you can **skip Step 3 below** and
+only do `acceptOwnership()` from the Safe.)
 
 ---
 
@@ -71,9 +97,48 @@ The Safe needs to call `acceptOwnership()` on the escrow. From the Safe UI:
 9. Wait for confirmation. Verify on Basescan that `owner()` now returns
    `0x2332373BEB…D9D5e6`.
 
+### Faster: Safe Transaction Builder JSON
+
+If you'd rather upload a pre-built batch instead of clicking through
+the UI, save the following to `accept-ownership.json` and import via
+**Apps → Transaction Builder → Load batch from file** inside the Safe
+on Base Sepolia. (Already pinned to chainId 84532.)
+
+```json
+{
+  "version": "1.0",
+  "chainId": "84532",
+  "createdAt": 1747000000000,
+  "meta": {
+    "name": "Forj — Accept ownership of ForjEscrow v2",
+    "description": "Safe acceptOwnership() on ForjEscrow at 0x09fb654f30637258d30e3f03b06f5370a0cf8954. Finalises the Ownable2Step handoff from deployer EOA to this Safe."
+  },
+  "transactions": [
+    {
+      "to": "0x09fb654f30637258d30e3f03b06f5370a0cf8954",
+      "value": "0",
+      "data": "0x79ba5097",
+      "contractMethod": {
+        "inputs": [],
+        "name": "acceptOwnership",
+        "payable": false
+      },
+      "contractInputsValues": {}
+    }
+  ]
+}
+```
+
+`data: 0x79ba5097` is the function selector for `acceptOwnership()` —
+no arguments, so no input encoding is needed. The Safe verifies this
+matches the named method on the verified contract before signing.
+
 ---
 
 ## Step 3 — Update fee recipient to Safe
+
+> **Skip if you used Option A in Step 1** — the script already migrated
+> the fee recipient before transferring ownership. Move on to Step 4.
 
 Currently `feeRecipient = 0x7B3E3953bF5D6FaB66A0EC374341b6C629Ad8322`
 (your personal wallet). Migrate it to the Safe so accumulated platform
@@ -89,18 +154,50 @@ From the Safe (still in app.safe.global):
 
 Verify on Basescan: `feeRecipient()` returns the Safe address.
 
+### Faster: Safe Transaction Builder JSON
+
+```json
+{
+  "version": "1.0",
+  "chainId": "84532",
+  "createdAt": 1747000000000,
+  "meta": {
+    "name": "Forj — Route platform fees to this Safe",
+    "description": "Calls setFeeRecipient(safe) on ForjEscrow v2 so future release fees flow to multisig treasury."
+  },
+  "transactions": [
+    {
+      "to": "0x09fb654f30637258d30e3f03b06f5370a0cf8954",
+      "value": "0",
+      "contractMethod": {
+        "inputs": [{ "internalType": "address", "name": "next", "type": "address" }],
+        "name": "setFeeRecipient",
+        "payable": false
+      },
+      "contractInputsValues": {
+        "next": "0x2332373BEB6A13A61bf45881808327406DD9D5e6"
+      }
+    }
+  ]
+}
+```
+
 ---
 
 ## Step 4 — Update `.env` to mirror on-chain state
 
 ```bash
 # .env
+NEXT_PUBLIC_MULTISIG_ADDRESS=0x2332373BEB6A13A61bf45881808327406DD9D5e6
 PLATFORM_FEE_RECIPIENT=0x2332373BEB6A13A61bf45881808327406DD9D5e6
 ```
 
-This env var is consumed by the **deploy script** (not the running
-app), so future redeploys (e.g. v3 milestone contract) constructor-init
-their fee recipient to the Safe.
+Both env vars are consumed by **scripts** (deploy + transfer-ownership),
+not the running app, so future redeploys (e.g. v3 milestone contract)
+constructor-init their owner / fee recipient to the Safe directly. The
+`NEXT_PUBLIC_*` prefix is just a convention shared with frontend env
+vars — the Multisig address is not actually wired into the client
+bundle today; reserved for future "treasury balance" widgets.
 
 The running app reads `feeRecipient` from the contract on each release
 — no app restart needed for this change to take effect.
