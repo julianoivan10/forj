@@ -7,6 +7,7 @@ import { ArrowRight, Plus, Sparkles, Star } from 'lucide-react';
 import type { inferRouterOutputs } from '@trpc/server';
 import type { AppRouter } from '@forj/api';
 import { Badge, Button, Input, Skeleton, UserAvatar } from '@/components/ui';
+import { ServiceBookmarkButton } from '@/components/services/service-bookmark-button';
 import { api } from '@/lib/trpc/client';
 import { JOB_CATEGORIES } from '@/lib/constants';
 import { cn, formatUSD } from '@/lib/utils';
@@ -164,10 +165,10 @@ function ServiceCard({
     >
       <Link
         href={`/services/${service.slug}`}
-        className="group flex h-full flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-background-secondary)] transition-colors hover:border-[var(--color-border-brand)]"
+        className="group relative flex h-full flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-background-secondary)] transition-colors hover:border-[var(--color-border-brand)]"
       >
         {/* Cover */}
-        <div className="aspect-[16/10] w-full overflow-hidden bg-gradient-to-br from-[var(--color-background-tertiary)] to-[var(--color-background-elevated)]">
+        <div className="relative aspect-[16/10] w-full overflow-hidden bg-gradient-to-br from-[var(--color-background-tertiary)] to-[var(--color-background-elevated)]">
           {service.coverImageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -181,6 +182,12 @@ function ServiceCard({
               <Sparkles className="size-8 text-[var(--color-text-tertiary)]" />
             </div>
           )}
+          {/* Bookmark — top-right corner. Click target is small + uses
+              stopPropagation in the component so it doesn't trigger
+              the parent Link navigation. */}
+          <div className="absolute right-3 top-3">
+            <ServiceBookmarkButton serviceId={service.id} />
+          </div>
         </div>
 
         {/* Body */}

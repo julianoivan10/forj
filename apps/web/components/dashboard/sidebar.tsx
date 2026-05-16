@@ -20,7 +20,37 @@ import {
 import { useAuth, hasPrivy } from '@/hooks/use-auth';
 import { api } from '@/lib/trpc/client';
 import { useT } from '@/lib/i18n/provider';
+import { ModeSwitcher } from '@/components/dashboard/mode-switcher';
 import { cn } from '@/lib/utils';
+
+/**
+ * Mode-aware nav visibility. Keyed on i18n label keys so we don't
+ * stringly-couple to specific labels. `both` mode keeps the existing
+ * behaviour (everything visible).
+ */
+const VISIBLE_BY_MODE: Record<'client' | 'freelancer', Set<string>> = {
+  client: new Set([
+    'sidebar.overview',
+    'sidebar.myJobs',
+    'sidebar.savedServices',  // buyer-side bookmarks
+    // Saved Jobs hidden in client mode (worker affordance)
+    'sidebar.contracts',
+    'sidebar.messages',
+    'sidebar.notifications',
+    'sidebar.settings',
+  ]),
+  freelancer: new Set([
+    'sidebar.overview',
+    'sidebar.myProposals',
+    'sidebar.myServices',
+    'sidebar.savedJobs',
+    // Saved Services hidden in freelancer mode (buyer affordance)
+    'sidebar.contracts',
+    'sidebar.messages',
+    'sidebar.notifications',
+    'sidebar.settings',
+  ]),
+};
 
 interface NavItem {
   /** i18n key resolved at render time. e.g. `sidebar.myJobs`. */
@@ -61,6 +91,7 @@ const NAV_GROUPS: NavGroup[] = [
       { labelKey: 'sidebar.savedJobs', href: '/dashboard/saved', icon: Bookmark, sub: true, dataTour: 'sidebar-saved' },
       { labelKey: 'sidebar.myProposals', href: '/dashboard/proposals', icon: FileText },
       { labelKey: 'sidebar.myServices', href: '/dashboard/services', icon: Sparkles },
+      { labelKey: 'sidebar.savedServices', href: '/dashboard/saved-services', icon: Bookmark, sub: true },
       { labelKey: 'sidebar.contracts', href: '/dashboard/contracts', icon: FileSignature },
     ],
   },
@@ -83,6 +114,18 @@ function SidebarContent() {
   const pathname = usePathname();
   const { user } = useAuth();
   const t = useT();
+
+  const mode = (user?.role ?? 'both') as 'client' | 'freelancer' | 'both';
+  // Filter nav groups by mode. `both` keeps the full list. Other modes
+  // hide items irrelevant to that perspective (e.g. Saved Jobs hidden
+  // for client-mode users — that's a worker affordance).
+  const visibleGroups =
+    mode === 'both'
+      ? NAV_GROUPS
+      : NAV_GROUPS.map((g) => ({
+          ...g,
+          items: g.items.filter((item) => VISIBLE_BY_MODE[mode].has(item.labelKey)),
+        })).filter((g) => g.items.length > 0);
 
   const isAuthed = Boolean(user?.id);
   const msgUnread = api.message.unreadCount.useQuery(undefined, {
@@ -113,9 +156,18 @@ function SidebarContent() {
         </Link>
       </div>
 
+      {/* Mode switcher — sits above the nav so users see their
+          current perspective FIRST. Hidden if user data isn't loaded
+          yet (avoids flash of empty mode badge). */}
+      {user ? (
+        <div className="px-3 pt-3">
+          <ModeSwitcher />
+        </div>
+      ) : null}
+
       {/* Nav groups */}
       <nav className="flex-1 overflow-y-auto p-3">
-        {NAV_GROUPS.map((group, gi) => (
+        {visibleGroups.map((group, gi) => (
           <div key={gi} className={cn(gi > 0 && 'mt-5')}>
             {group.titleKey ? (
               <p className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">

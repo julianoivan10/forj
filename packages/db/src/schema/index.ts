@@ -8,3 +8,4 @@ export * from './reviews';
 export * from './notifications';
 export * from './services';
 export * from './saved-jobs';
+export * from './saved-services';

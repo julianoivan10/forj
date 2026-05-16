@@ -166,6 +166,30 @@ export const userRouter = createTRPCRouter({
       return updated;
     }),
 
+  /**
+   * Updates the user's preferred mode (`client` / `freelancer` / `both`).
+   *
+   * "Mode" is purely a UI affordance — the data model doesn't restrict
+   * what a user can DO based on role. A user in `client` mode can still
+   * apply to a job (the UI will prompt them to fill the lazy freelancer
+   * profile fields first). The switcher is for surface visibility:
+   * which nav items are prominent, which dashboard hero copy shows.
+   *
+   * Persisted to the DB so the preference survives across devices.
+   * Mirrored to localStorage on the client for instant re-render
+   * without a round-trip.
+   */
+  setRole: protectedProcedure
+    .input(z.object({ role: z.enum(['client', 'freelancer', 'both']) }))
+    .mutation(async ({ ctx, input }) => {
+      const [updated] = await ctx.db
+        .update(users)
+        .set({ role: input.role })
+        .where(eq(users.id, ctx.user.id))
+        .returning();
+      return updated;
+    }),
+
   // ── Notification Preferences ─────────────────────────────────
   updateNotificationPreferences: protectedProcedure
     .input(

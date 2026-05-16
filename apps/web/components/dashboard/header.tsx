@@ -58,6 +58,7 @@ const MOBILE_NAV: Array<{ titleKey: string | null; items: MobileNavItemKeyed[] }
       { labelKey: 'sidebar.savedJobs', href: '/dashboard/saved', icon: Bookmark, sub: true },
       { labelKey: 'sidebar.myProposals', href: '/dashboard/proposals', icon: FileText },
       { labelKey: 'sidebar.myServices', href: '/dashboard/services', icon: Sparkles },
+      { labelKey: 'sidebar.savedServices', href: '/dashboard/saved-services', icon: Bookmark, sub: true },
       { labelKey: 'sidebar.contracts', href: '/dashboard/contracts', icon: FileSignature },
     ],
   },
