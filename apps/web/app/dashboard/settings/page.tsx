@@ -66,27 +66,32 @@ export default function DashboardSettingsPage() {
         Manage your profile, account, and preferences.
       </p>
 
-      {/* Tab bar */}
-      <div className="mt-6 flex gap-1 border-b border-[var(--color-border-default)]">
-        {([
-          { key: 'profile', label: 'Profile', icon: User },
-          { key: 'account', label: 'Account', icon: Shield },
-          { key: 'notifications', label: 'Notifications', icon: Bell },
-        ] as const).map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={cn(
-              'flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors',
-              tab === t.key
-                ? 'border-[var(--color-brand-primary)] text-[var(--color-brand-primary)]'
-                : 'border-transparent text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]',
-            )}
-          >
-            <t.icon className="size-4" />
-            {t.label}
-          </button>
-        ))}
+      {/* Tab bar — horizontally scrollable on mobile so the three tabs
+          don't bleed off the right edge of a 375px viewport. The
+          `scrollbar-thin` would be nice but Tailwind 4 doesn't ship it
+          by default; the native scrollbar fades in only when needed. */}
+      <div className="mt-6 -mx-4 overflow-x-auto border-b border-[var(--color-border-default)] sm:mx-0">
+        <div className="flex w-max min-w-full gap-1 px-4 sm:px-0">
+          {([
+            { key: 'profile', label: 'Profile', icon: User },
+            { key: 'account', label: 'Account', icon: Shield },
+            { key: 'notifications', label: 'Notifications', icon: Bell },
+          ] as const).map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={cn(
+                'flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-3 text-sm font-medium transition-colors',
+                tab === t.key
+                  ? 'border-[var(--color-brand-primary)] text-[var(--color-brand-primary)]'
+                  : 'border-transparent text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]',
+              )}
+            >
+              <t.icon className="size-4" />
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="mt-6">

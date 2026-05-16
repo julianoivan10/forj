@@ -111,21 +111,29 @@ export function DashboardHeader() {
 
   return (
     <>
-      <header className="sticky top-0 z-20 flex h-16 items-center gap-4 border-b border-[var(--color-border-default)] bg-[var(--color-background-primary)]/80 px-4 backdrop-blur-xl lg:px-8">
+      <header className="sticky top-0 z-20 flex h-16 items-center gap-2 border-b border-[var(--color-border-default)] bg-[var(--color-background-primary)]/80 px-3 backdrop-blur-xl sm:gap-4 sm:px-4 lg:px-8">
         {/* Mobile menu toggle */}
         <button
           onClick={() => setMobileOpen(true)}
-          className="inline-flex size-10 items-center justify-center rounded-[var(--radius-md)] text-[var(--color-text-secondary)] hover:bg-[var(--color-text-primary)]/[0.04] lg:hidden"
+          className="inline-flex size-10 shrink-0 items-center justify-center rounded-[var(--radius-md)] text-[var(--color-text-secondary)] hover:bg-[var(--color-text-primary)]/[0.04] lg:hidden"
           aria-label="Open menu"
         >
           <Menu className="size-5" />
         </button>
 
-        <h1 className="flex-1 font-display text-lg font-bold text-[var(--color-text-primary)] lg:text-xl">
+        {/* Page title — hidden on the smallest screens so 5 right-side
+            icons + the hamburger have room to breathe. Title reappears
+            at `sm:` (≥640px); at lg: gets its desktop-size font. */}
+        <h1 className="hidden flex-1 truncate font-display text-lg font-bold text-[var(--color-text-primary)] sm:block lg:text-xl">
           {title}
         </h1>
 
-        <div className="flex items-center gap-2">
+        {/* Spacer that keeps right-side icons flush right on mobile when
+            the title is hidden. Without this the icons would flow left,
+            looking off-balance. */}
+        <div className="flex-1 sm:hidden" aria-hidden />
+
+        <div className="flex items-center gap-1 sm:gap-2">
           <SearchTrigger />
           <LanguageSwitcher />
           <ThemeToggle />

@@ -592,7 +592,13 @@ export default function ContractDetailPage() {
             Progress
           </h2>
           <div className="mt-5">
-            <div className="grid grid-cols-4 gap-2">
+            {/* Mobile: 2-up grid (4 steps in 2 rows of 2) so each cell
+                has ~165px on a 375px viewport — readable. Desktop: the
+                classic 4-across timeline. The connector line behaviour
+                is unchanged because we still render the same number of
+                items in order; the visual wrap on mobile just makes the
+                second row a continuation of the first. */}
+            <div className="grid grid-cols-2 gap-y-4 gap-x-2 sm:grid-cols-4 sm:gap-y-2">
               {TIMELINE.map((step, i) => {
                 const reached = stage >= i;
                 const current = stage === i;

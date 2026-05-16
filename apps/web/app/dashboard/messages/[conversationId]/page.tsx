@@ -138,7 +138,7 @@ export default function ConversationThreadPage() {
   // Permission / missing-conversation error → gate early.
   if (thread.isError) {
     return (
-      <div className="mx-auto max-w-3xl">
+      <div className="mx-auto w-full max-w-full px-4 sm:max-w-3xl sm:px-0">
         <BackLink />
         <div className="mt-8 flex flex-col items-center gap-3 rounded-[var(--radius-xl)] border border-dashed border-[var(--color-border-default)] bg-[var(--color-background-secondary)]/40 px-6 py-16 text-center">
           <div className="flex size-14 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--color-background-tertiary)]">
@@ -168,7 +168,7 @@ export default function ConversationThreadPage() {
   };
 
   return (
-    <div className="mx-auto flex h-[calc(100vh-7rem)] max-w-3xl flex-col">
+    <div className="mx-auto flex h-[calc(100vh-7rem)] w-full max-w-full flex-col px-4 sm:max-w-3xl sm:px-0">
       {/* Header */}
       <div className="flex items-center gap-3 border-b border-[var(--color-border-default)] pb-4">
         <button
