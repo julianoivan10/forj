@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   Save,
@@ -60,7 +60,28 @@ const NOTIFICATION_TYPES = [
 
 export default function DashboardSettingsPage() {
   const { user, refetchUser } = useAuth();
-  const [tab, setTab] = useState<'profile' | 'account' | 'security' | 'notifications'>('profile');
+  const searchParams = useSearchParams();
+  // Initial tab: respect `?tab=<slug>` so deep links (e.g. the
+  // dashboard recovery nudge → /dashboard/settings?tab=security)
+  // land on the right pane. Falls back to Profile.
+  const initialTab = (() => {
+    const t = searchParams.get('tab');
+    if (t === 'account' || t === 'security' || t === 'notifications') return t;
+    return 'profile' as const;
+  })();
+  const [tab, setTab] = useState<'profile' | 'account' | 'security' | 'notifications'>(initialTab);
+
+  // If the URL `?tab=` changes after mount (back/forward nav), sync
+  // — but don't fight the user clicking tab buttons (those don't
+  // mutate the URL). Effect dependency is just the searchParams
+  // string, not `tab` state.
+  useEffect(() => {
+    const t = searchParams.get('tab');
+    if (t === 'profile' || t === 'account' || t === 'security' || t === 'notifications') {
+      setTab(t);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   if (!user) return null;
 

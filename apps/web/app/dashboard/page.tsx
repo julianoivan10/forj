@@ -19,6 +19,7 @@ import { api } from '@/lib/trpc/client';
 import { cn } from '@/lib/utils';
 import { Badge, EmptyState, Skeleton } from '@/components/ui';
 import { ProfileCompleteness } from '@/components/dashboard/profile-completeness';
+import { RecoveryNudge } from '@/components/dashboard/recovery-nudge';
 import { BADGE_TIER_META } from '@/lib/constants';
 
 export default function DashboardPage() {
@@ -53,6 +54,14 @@ export default function DashboardPage() {
       {/* Profile completeness nudge — auto-hides at 100% or when dismissed */}
       <div className="mt-6">
         <ProfileCompleteness />
+      </div>
+
+      {/* Account recovery nudge — orthogonal to profile completeness.
+          Shows whenever the user lacks a backup sign-in method AND
+          hasn't configured wallet recovery. Auto-dismisses for 30
+          days after the user clicks "remind me later". */}
+      <div className="mt-4">
+        <RecoveryNudge />
       </div>
 
       {/* Stat cards */}
