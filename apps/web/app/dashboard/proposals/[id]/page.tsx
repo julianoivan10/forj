@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -14,7 +15,18 @@ import {
   ShieldCheck,
   XCircle,
 } from 'lucide-react';
-import { Badge, Button, Skeleton, UserAvatar } from '@/components/ui';
+import {
+  Badge,
+  Button,
+  Modal,
+  ModalContent,
+  ModalDescription,
+  ModalFooter,
+  ModalHeader,
+  ModalTitle,
+  Skeleton,
+  UserAvatar,
+} from '@/components/ui';
 import { api } from '@/lib/trpc/client';
 import { useAuth } from '@/hooks/use-auth';
 import { formatUSD, formatUSDC } from '@/lib/utils';
@@ -47,9 +59,11 @@ export default function ProposalDetailPage() {
   );
 
   const utils = api.useUtils();
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const withdrawMut = api.proposal.withdraw.useMutation({
     onSuccess: () => {
       toast.success('Proposal withdrawn');
+      setConfirmOpen(false);
       utils.proposal.getById.invalidate({ id: proposalId });
       utils.proposal.myProposals.invalidate();
     },
@@ -286,22 +300,46 @@ export default function ProposalDetailPage() {
               variant="destructive"
               size="sm"
               leftIcon={<XCircle />}
-              isLoading={withdrawMut.isPending}
-              onClick={() => {
-                if (
-                  confirm(
-                    'Withdraw this proposal? The client will no longer be able to accept it.',
-                  )
-                ) {
-                  withdrawMut.mutate({ id: proposal.id });
-                }
-              }}
+              onClick={() => setConfirmOpen(true)}
             >
               Withdraw proposal
             </Button>
           </footer>
         ) : null}
       </article>
+
+      {/* Withdraw confirmation. Modal instead of browser confirm() so
+          mobile users don't hit the iOS native dialog that's hard to
+          dismiss + the styling stays consistent with other destructive
+          actions on the platform. */}
+      <Modal open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <ModalContent size="sm">
+          <ModalHeader>
+            <ModalTitle>Withdraw this proposal?</ModalTitle>
+            <ModalDescription>
+              The client will no longer be able to accept it. You can
+              submit a new proposal later if the job is still open.
+            </ModalDescription>
+          </ModalHeader>
+          <ModalFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setConfirmOpen(false)}
+              disabled={withdrawMut.isPending}
+            >
+              Keep proposal
+            </Button>
+            <Button
+              variant="destructive"
+              leftIcon={<XCircle />}
+              isLoading={withdrawMut.isPending}
+              onClick={() => withdrawMut.mutate({ id: proposal.id })}
+            >
+              Withdraw
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </div>
   );
 }

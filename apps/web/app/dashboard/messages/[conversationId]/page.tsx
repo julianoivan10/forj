@@ -18,14 +18,23 @@ import { BADGE_TIER_META } from '@/lib/constants';
 // usage shows users mash the button repeatedly.
 const PAGE_SIZE = 50;
 
-type ThreadMessage = {
+// ThreadMessage shape used by the pagination state below — superset
+// of the loose helper-function type at the bottom of the file
+// (groupByDay/groupBurst take `type: string` for tolerance). Keeping
+// the strict variant here so the older-messages prepend logic is
+// type-safe against the live server payload.
+type ThreadMessageStrict = {
   id: string;
   conversationId: string;
   senderId: string;
   receiverId: string;
   content: string;
   fileUrl: string | null;
-  type: 'text' | 'file';
+  // `system` is reserved for future system-emitted messages (status
+  // changes, contract milestones); server emits the column with that
+  // enum so we mirror it here. UI today only renders text/file but
+  // a forward-compatible type prevents future bugs.
+  type: 'text' | 'file' | 'system';
   isRead: boolean;
   createdAt: Date;
   sender?: {
@@ -60,7 +69,7 @@ export default function ConversationThreadPage() {
 
   // History pages loaded via "Load older" — prepended to the live tail
   // for display. Reset when the conversation changes (route swap).
-  const [olderMessages, setOlderMessages] = useState<ThreadMessage[]>([]);
+  const [olderMessages, setOlderMessages] = useState<ThreadMessageStrict[]>([]);
   const [hasMoreOlder, setHasMoreOlder] = useState(true);
   const [loadingOlder, setLoadingOlder] = useState(false);
 

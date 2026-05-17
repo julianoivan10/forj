@@ -17,9 +17,16 @@ import {
   type ServiceTier,
 } from '@forj/db';
 import { z } from 'zod';
+import { isAllowedFileUrl } from '../lib/file-host';
 import { RATE_LIMITS, checkRateLimit } from '../middleware/rate-limit';
 import { notify } from '../services/notifications';
 import { createTRPCRouter, protectedProcedure, publicProcedure } from '../trpc';
+
+/** Approved-host upload URL — shared with job router; see lib/file-host.ts. */
+const fileUrl = z
+  .string()
+  .url()
+  .refine(isAllowedFileUrl, 'URL must point to UploadThing or Pinata.');
 
 /**
  * Services router — freelancer-published gigs (Fiverr Project Catalog model).
@@ -80,8 +87,8 @@ const createInput = z.object({
   ]),
   subcategory: z.string().max(80).optional(),
   skills: z.array(z.string().min(1).max(40)).max(20).default([]),
-  coverImageUrl: z.string().url().optional(),
-  galleryUrls: z.array(z.string().url()).max(5).default([]),
+  coverImageUrl: fileUrl.optional(),
+  galleryUrls: z.array(fileUrl).max(5).default([]),
   tiers: z.array(tierSchema).min(1).max(3),
 });
 
@@ -373,7 +380,7 @@ export const serviceRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       // Rate-limit so a compromised account can't flood the queue with
       // fake orders. Same window as job posts.
-      await checkRateLimit(ctx.user.id, 'service.purchase', RATE_LIMITS.serviceCreate);
+      await checkRateLimit(ctx.user.id, 'service.purchase', RATE_LIMITS.servicePurchase);
 
       const service = await ctx.db.query.services.findFirst({
         where: eq(services.id, input.serviceId),

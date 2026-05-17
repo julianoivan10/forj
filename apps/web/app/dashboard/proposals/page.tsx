@@ -6,7 +6,6 @@ import { Search, ExternalLink, Loader2, ArrowRight, XCircle } from 'lucide-react
 import { api } from '@/lib/trpc/client';
 import { Button, Badge, EmptyState as SharedEmptyState, Skeleton, UserAvatar } from '@/components/ui';
 import { formatUSD } from '@/lib/utils';
-import { toast } from 'sonner';
 
 type StatusInfo = { label: string; variant: 'success' | 'warning' | 'default' | 'brand' };
 
@@ -22,13 +21,9 @@ const STATUS_MAP: Record<string, StatusInfo> = {
 
 export default function DashboardProposalsPage() {
   const proposals = api.proposal.myProposals.useQuery();
-  const withdrawMut = api.proposal.withdraw.useMutation({
-    onSuccess: () => {
-      toast.success('Proposal withdrawn');
-      proposals.refetch();
-    },
-    onError: (err) => toast.error(err.message),
-  });
+  // Withdrawal flow lives on the proposal detail page (with a
+  // confirmation modal) — we link there instead of firing the
+  // mutation from the list.
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -117,16 +112,22 @@ export default function DashboardProposalsPage() {
                         </Button>
                       </Link>
                       {canWithdraw && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => withdrawMut.mutate({ id: proposal.id })}
-                          isLoading={withdrawMut.isPending}
-                          className="text-[var(--color-error)] hover:bg-[var(--color-error)]/10"
-                        >
-                          <XCircle className="size-4 mr-1" />
-                          Withdraw
-                        </Button>
+                        // Route to the detail page where the
+                        // confirmation modal lives. Withdrawing a
+                        // proposal is destructive — the user should
+                        // see full context (bid, milestones, job) and
+                        // confirm in a modal, not via a one-click
+                        // ghost button on a crowded list.
+                        <Link href={`/dashboard/proposals/${proposal.id}`}>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-[var(--color-error)] hover:bg-[var(--color-error)]/10"
+                          >
+                            <XCircle className="size-4 mr-1" />
+                            Withdraw…
+                          </Button>
+                        </Link>
                       )}
                     </div>
                   </div>

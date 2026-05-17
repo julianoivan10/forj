@@ -1,8 +1,16 @@
 import { TRPCError } from '@trpc/server';
 import { and, desc, eq, gte, ilike, inArray, jobs, lte, or, sql, users } from '@forj/db';
 import { z } from 'zod';
+import { isAllowedFileUrl } from '../lib/file-host';
 import { checkRateLimit, RATE_LIMITS } from '../middleware/rate-limit';
 import { clientProcedure, createTRPCRouter, protectedProcedure, publicProcedure } from '../trpc';
+
+/** zod refinement for uploads that must come from our approved hosts.
+ *  Centralised so the same error message flows everywhere. */
+const fileUrl = z
+  .string()
+  .url()
+  .refine(isAllowedFileUrl, 'URL must point to UploadThing or Pinata.');
 
 const jobCategorySchema = z.enum([
   'development',
@@ -139,13 +147,13 @@ export const jobRouter = createTRPCRouter({
         category: jobCategorySchema,
         subcategory: z.string().max(80).optional(),
         skills: z.array(z.string().max(40)).min(1).max(15),
-        coverImageUrl: z.string().url().optional(),
+        coverImageUrl: fileUrl.optional(),
         budgetType: z.enum(['fixed', 'hourly']),
         budgetMin: z.number().positive(),
         budgetMax: z.number().positive(),
         duration: jobDurationSchema,
         experienceLevel: experienceLevelSchema,
-        attachments: z.array(z.string().url()).max(10).optional(),
+        attachments: z.array(fileUrl).max(10).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {

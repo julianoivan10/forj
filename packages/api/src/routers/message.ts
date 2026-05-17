@@ -248,8 +248,10 @@ export const messageRouter = createTRPCRouter({
       const rows = trimmed.slice().reverse(); // ASC for display
       // Cursor = createdAt of the oldest message we just returned.
       // null when there's no more history in either direction (which
-      // we infer from `!hasMore`).
-      const nextCursor = hasMore && rows.length > 0 ? rows[0].createdAt : null;
+      // we infer from `!hasMore`). Pull rows[0] into a local so TS
+      // narrows around the noUncheckedIndexedAccess guard.
+      const oldest = rows[0];
+      const nextCursor = hasMore && oldest ? oldest.createdAt : null;
 
       const other = await ctx.db.query.users.findFirst({
         where: eq(users.id, otherId),
@@ -348,6 +350,17 @@ export const messageRouter = createTRPCRouter({
           type: input.fileUrl ? 'file' : 'text',
         })
         .returning();
+      // Drizzle types the destructure as `Message | undefined` under
+      // strict mode even though `.returning()` after a single .insert
+      // always yields one row. Defensive narrow + throw so TS is
+      // happy AND we'd surface a Neon/Drizzle bug rather than silently
+      // skipping the notify call below.
+      if (!message) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Message insert returned no row',
+        });
+      }
 
       // Notify receiver — in-app only. `email-dispatch.ts` deliberately
       // skips `message_received` (would be noisy), so this just lands a

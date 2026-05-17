@@ -2,6 +2,7 @@ import { TRPCError } from '@trpc/server';
 import { DEFAULT_FEE_BPS } from '@forj/contracts';
 import { and, contracts, desc, eq, jobs, ne, proposals, sql, users } from '@forj/db';
 import { z } from 'zod';
+import { isAllowedFileUrl } from '../lib/file-host';
 import { checkRateLimit, RATE_LIMITS } from '../middleware/rate-limit';
 import { notify } from '../services/notifications';
 import {
@@ -9,6 +10,12 @@ import {
   freelancerProcedure,
   protectedProcedure,
 } from '../trpc';
+
+/** Approved-host upload URL — shared whitelist with job + service routers. */
+const fileUrl = z
+  .string()
+  .url()
+  .refine(isAllowedFileUrl, 'URL must point to UploadThing or Pinata.');
 
 const milestoneSchema = z.object({
   title: z.string().max(120),
@@ -96,7 +103,7 @@ export const proposalRouter = createTRPCRouter({
         bidType: z.enum(['fixed', 'hourly']),
         estimatedDuration: z.string().min(1).max(80),
         milestones: z.array(milestoneSchema).max(10).optional(),
-        attachments: z.array(z.string().url()).max(5).optional(),
+        attachments: z.array(fileUrl).max(5).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {

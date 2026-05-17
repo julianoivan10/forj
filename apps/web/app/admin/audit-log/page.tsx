@@ -2,9 +2,18 @@
 
 import { useMemo, useState } from 'react';
 import { AlertTriangle, ChevronDown, FileSearch, Filter } from 'lucide-react';
+import type { inferRouterOutputs } from '@trpc/server';
+import type { AppRouter } from '@forj/api';
 import { Badge, Button, Input, Skeleton } from '@/components/ui';
 import { api } from '@/lib/trpc/client';
 import { cn } from '@/lib/utils';
+
+// Pull the audit-row shape directly from the tRPC router output so
+// any server-side shape change propagates here at compile time.
+// `ReturnType<typeof useQuery>['data']` doesn't fully drill into the
+// array element under the createTRPCReact wrapper — `inferRouterOutputs`
+// gives us the raw return type.
+type AuditRowData = inferRouterOutputs<AppRouter>['admin']['listAuditLog'][number];
 
 /**
  * Admin → Audit log viewer.
@@ -181,9 +190,7 @@ export default function AdminAuditLogPage() {
 }
 
 /* ────────────────────────────────────────────────────────────── */
-type AuditRow = NonNullable<ReturnType<typeof api.admin.listAuditLog.useQuery>['data']>[number];
-
-function AuditRow({ row }: { row: AuditRow }) {
+function AuditRow({ row }: { row: AuditRowData }) {
   const [expanded, setExpanded] = useState(false);
   // Pretty-print the details JSONB. We trust the row was inserted by
   // our own server code so the shape is reliably an object — but we

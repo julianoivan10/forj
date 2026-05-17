@@ -1,6 +1,6 @@
 import 'server-only';
 import { PrivyClient } from '@privy-io/server-auth';
-import { db, eq, users } from '@forj/db';
+import { and, db, eq, isNull, users } from '@forj/db';
 import type { User } from '@forj/db';
 
 const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
@@ -131,11 +131,16 @@ export async function getUserFromToken(token: string | undefined): Promise<User 
       // login — wallet stays stale until the next successful sync.
       try {
         const privyUser = await privy.getUser(verified.userId);
-        const canonical = pickCanonicalWallet(privyUser);
+        // Normalize to lowercase BEFORE writing — EVM addresses are
+        // case-insensitive but Postgres `=` is case-sensitive. Without
+        // normalization, Privy's `0xABC…` one login and `0xabc…` the
+        // next would both pass the "different from existing" check
+        // and rewrite the row every session.
+        const canonical = pickCanonicalWallet(privyUser)?.toLowerCase() ?? null;
         const needsSync =
           canonical &&
           (!existing.walletAddress ||
-            existing.walletAddress.toLowerCase() !== canonical.toLowerCase());
+            existing.walletAddress.toLowerCase() !== canonical);
         if (needsSync) {
           const [synced] = await db
             .update(users)
@@ -169,7 +174,9 @@ export async function getUserFromToken(token: string | undefined): Promise<User 
       // wallet (not the underlying EOA) as their `users.walletAddress`.
       // The smart wallet is what wagmi exposes and what receives payouts —
       // see `pickCanonicalWallet` for the full reasoning.
-      wallet = pickCanonicalWallet(privyUser) ?? undefined;
+      // Lowercase at the source — every downstream comparison + DB
+      // store assumes lowercase, so normalize once here.
+      wallet = pickCanonicalWallet(privyUser)?.toLowerCase() ?? undefined;
       email = view.email?.address ?? view.google?.email ?? undefined;
       const googleName = view.google?.name;
       displayName = googleName ?? email?.split('@')[0] ?? 'Forj User';
@@ -188,8 +195,16 @@ export async function getUserFromToken(token: string | undefined): Promise<User 
     // email in some flows, and auto-merging by email would be an account takeover
     // vector.
     if (wallet) {
+      // Normalize wallet lookup to lowercase — same case-insensitivity
+      // concern as the sync branch above. Also FILTER soft-deleted
+      // rows: a fresh Privy session shouldn't be auto-bound to a
+      // wallet that belonged to a deleted account, because that
+      // would silently grant the new user access to the deleted
+      // user's reputation/history. If a real human is recovering a
+      // deleted account, that's the `admin.restoreUser` path.
+      const walletLc = wallet.toLowerCase();
       const byWallet = await db.query.users.findFirst({
-        where: eq(users.walletAddress, wallet),
+        where: and(eq(users.walletAddress, walletLc), isNull(users.deletedAt)),
       });
       if (byWallet) {
         const [relinked] = await db

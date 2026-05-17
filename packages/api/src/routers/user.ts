@@ -2,6 +2,7 @@ import { TRPCError } from '@trpc/server';
 import { and, contracts, eq, inArray, isNull, jobs, messages, notifications, or, proposals, reviews, users } from '@forj/db';
 import { WelcomeEmail, sendEmail } from '@forj/email';
 import { z } from 'zod';
+import { isAllowedFileUrl } from '../lib/file-host';
 import { createTRPCRouter, protectedProcedure, publicProcedure } from '../trpc';
 
 const usernameSchema = z
@@ -70,8 +71,12 @@ export const userRouter = createTRPCRouter({
   checkUsernameAvailable: publicProcedure
     .input(z.object({ username: usernameSchema }))
     .query(async ({ ctx, input }) => {
+      // Filter soft-deleted rows — deleted users' usernames are
+      // released to be reclaimed (that's the deletion contract).
+      // Without this filter, a `deleted` row's old username would
+      // forever block new signups.
       const existing = await ctx.db.query.users.findFirst({
-        where: eq(users.username, input.username),
+        where: and(eq(users.username, input.username), isNull(users.deletedAt)),
         columns: { id: true },
       });
       return { available: !existing };
@@ -91,8 +96,11 @@ export const userRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      // Same soft-delete filter as checkUsernameAvailable — must
+      // be consistent or a username can be "available" in the
+      // check but throw CONFLICT on onboarding submit.
       const existing = await ctx.db.query.users.findFirst({
-        where: eq(users.username, input.username),
+        where: and(eq(users.username, input.username), isNull(users.deletedAt)),
         columns: { id: true },
       });
       if (existing && existing.id !== ctx.user.id) {
@@ -142,10 +150,16 @@ export const userRouter = createTRPCRouter({
       z.object({
         displayName: z.string().min(1).max(80).optional(),
         bio: z.string().max(500).optional(),
+        // Avatar must come from an approved host (UploadThing / Pinata).
+        // Empty string clears the field. Same whitelist as message
+        // attachments — see packages/api/src/lib/file-host.ts.
         avatarUrl: z
           .string()
           .max(2000)
-          .refine((v) => v === '' || /^https?:\/\//.test(v), 'Must be a valid URL')
+          .refine(
+            (v) => v === '' || isAllowedFileUrl(v),
+            'Avatar must come from UploadThing or Pinata.',
+          )
           .optional(),
         skills: z.array(z.string().max(40)).max(20).optional(),
         hourlyRate: z.number().positive().optional(),

@@ -73,4 +73,8 @@ export const RATE_LIMITS = {
   contractEdit: { requests: 30, window: '1 h' } satisfies RateLimitConfig,
   // Service publishing — 10/h is plenty for a real freelancer, kills bots.
   serviceCreate: { requests: 10, window: '1 h' } satisfies RateLimitConfig,
+  // Service purchases — separate from create because purchases are
+  // client-side actions that flood differently. 30/h covers heavy
+  // shoppers; lower would frustrate legitimate users browsing services.
+  servicePurchase: { requests: 30, window: '1 h' } satisfies RateLimitConfig,
 } as const;
