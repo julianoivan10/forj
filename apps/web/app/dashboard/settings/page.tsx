@@ -12,9 +12,11 @@ import {
   Trash2,
   AlertTriangle,
   Loader2,
+  Lock,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { api } from '@/lib/trpc/client';
+import { SecurityTab } from '@/components/settings/security-tab';
 import {
   Button,
   Input,
@@ -53,7 +55,7 @@ const NOTIFICATION_TYPES = [
 
 export default function DashboardSettingsPage() {
   const { user, refetchUser } = useAuth();
-  const [tab, setTab] = useState<'profile' | 'account' | 'notifications'>('profile');
+  const [tab, setTab] = useState<'profile' | 'account' | 'security' | 'notifications'>('profile');
 
   if (!user) return null;
 
@@ -75,6 +77,7 @@ export default function DashboardSettingsPage() {
           {([
             { key: 'profile', label: 'Profile', icon: User },
             { key: 'account', label: 'Account', icon: Shield },
+            { key: 'security', label: 'Security', icon: Lock },
             { key: 'notifications', label: 'Notifications', icon: Bell },
           ] as const).map((t) => (
             <button
@@ -97,6 +100,7 @@ export default function DashboardSettingsPage() {
       <div className="mt-6">
         {tab === 'profile' && <ProfileTab user={user} onSave={refetchUser} />}
         {tab === 'account' && <AccountTab user={user} />}
+        {tab === 'security' && <SecurityTab />}
         {tab === 'notifications' && <NotificationsTab user={user} onSave={refetchUser} />}
       </div>
     </div>

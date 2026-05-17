@@ -11,21 +11,78 @@ import { Badge, Skeleton, UserAvatar, Button, Spinner } from '@/components/ui';
 import { MessageComposer } from '@/components/messages/message-composer';
 import { cn } from '@/lib/utils';
 
+// Cheap UUID-shape check so we don't fire a server roundtrip on
+// garbage query strings (`?to=hello`). Server zod would reject too,
+// but the local fast-fail produces a clearer toast.
+const UUID_RE = /^[0-9a-f-]{36}$/i;
+
 export default function DashboardMessagesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const utils = api.useUtils();
   // `?to=<userId>` shortcut — legacy entry points (contract detail
   // "Message" button, future emails, external links) push to
   // /dashboard/messages?to=<other-user-id>. We resolve that into the
   // deterministic conversation id and replace the URL so back-button
   // doesn't bounce the user into a getOrStart loop.
-  //
-  // Why a ref guard: this effect runs on every render. Without the
-  // guard, a slow getOrStart + a fast re-render could fire two
-  // overlapping queries and produce two router.replace calls.
   const toUserId = searchParams.get('to');
-  const handledRef = useRef<string | null>(null);
+  const toUserIdValid = toUserId !== null && UUID_RE.test(toUserId);
+
+  // useQuery pattern (not imperative .fetch in a useEffect) — earlier
+  // versions of this code had the cleanup function firing on every
+  // re-render because `utils` from `useUtils()` was in the deps array
+  // but is a fresh proxy each render. Result: cancelled=true got set
+  // before router.replace ever ran, so the spinner stuck forever.
+  // useQuery handles all of that lifecycle — React Query owns the
+  // cancellation + de-dupe and we just react to data/error landing.
+  const startQ = api.message.getOrStart.useQuery(
+    { userId: toUserId ?? '' },
+    {
+      enabled: toUserIdValid,
+      retry: false,
+      // Always fresh — opening this URL is an intent to navigate, not
+      // to view cached data. (Doesn't matter much in practice since we
+      // never revisit ?to= with the same id, but explicit is cheaper
+      // to reason about than implicit cache hits.)
+      staleTime: 0,
+      gcTime: 0,
+    },
+  );
+
+  // Once the server returns a conversationId, hop to the thread route
+  // and strip the ?to= query so refresh / back-button doesn't re-run
+  // the resolve. router.replace (not push) keeps the inbox URL out of
+  // history — the user got here from somewhere else originally.
+  const navigatedRef = useRef(false);
+  useEffect(() => {
+    if (!startQ.data || navigatedRef.current) return;
+    navigatedRef.current = true;
+    router.replace(
+      `/dashboard/messages/${encodeURIComponent(startQ.data.conversationId)}`,
+    );
+  }, [startQ.data, router]);
+
+  // Surface errors and bounce back to the clean inbox URL. Common
+  // cases: target user doesn't exist (NOT_FOUND), is soft-deleted
+  // (same NOT_FOUND), or "cannot message yourself" (BAD_REQUEST when
+  // someone hand-types their own uuid into the URL).
+  const erroredRef = useRef(false);
+  useEffect(() => {
+    if (!startQ.error || erroredRef.current) return;
+    erroredRef.current = true;
+    toast.error(startQ.error.message);
+    router.replace('/dashboard/messages');
+  }, [startQ.error, router]);
+
+  // Same UX as before for the malformed-uuid case (e.g. `?to=hello`):
+  // toast + clean the URL. Fires once because the ref guards the
+  // re-render that ?to=null triggers after router.replace.
+  const badUuidRef = useRef(false);
+  useEffect(() => {
+    if (toUserId === null || toUserIdValid || badUuidRef.current) return;
+    badUuidRef.current = true;
+    toast.error('That looks like an invalid user id.');
+    router.replace('/dashboard/messages');
+  }, [toUserId, toUserIdValid, router]);
 
   // Light polling so new messages/unread counts trickle in without a manual refresh.
   const convos = api.message.getConversations.useQuery(undefined, {
@@ -33,59 +90,10 @@ export default function DashboardMessagesPage() {
     refetchOnWindowFocus: true,
   });
 
-  useEffect(() => {
-    if (!toUserId) return;
-    if (handledRef.current === toUserId) return;
-    // Basic UUID v4-ish shape check so we don't fire getOrStart on
-    // garbage query strings (e.g. someone pasting `?to=hello`). The
-    // server would reject too, but a client-side fail-fast keeps the
-    // toast meaningful instead of a generic zod error.
-    if (!/^[0-9a-f-]{36}$/i.test(toUserId)) {
-      handledRef.current = toUserId;
-      toast.error('That looks like an invalid user id.');
-      router.replace('/dashboard/messages');
-      return;
-    }
-    handledRef.current = toUserId;
-    let cancelled = false;
-    (async () => {
-      try {
-        // `utils.<router>.<procedure>.fetch(input)` is the tRPC v11
-        // React-Query wrapper for an imperative fetch — uses the
-        // existing query client + httpBatchLink, returns the data.
-        // (The `utils.client.<...>.query()` pattern works in some
-        // tRPC builds but not this RC — earlier version of this code
-        // used it and the promise just sat pending forever, leaving
-        // the spinner stuck.)
-        const { conversationId } = await utils.message.getOrStart.fetch({
-          userId: toUserId,
-        });
-        if (cancelled) return;
-        router.replace(
-          `/dashboard/messages/${encodeURIComponent(conversationId)}`,
-        );
-      } catch (err) {
-        if (cancelled) return;
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : 'Could not open conversation with that user',
-        );
-        // Strip the ?to= so the toast doesn't fire again on the next
-        // render / navigation. Stay on the inbox view.
-        router.replace('/dashboard/messages');
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [toUserId, router, utils]);
-
-  // While we're resolving ?to= → conversation id, show a thin loading
-  // strip instead of the empty state. Otherwise users see "No
-  // conversations yet" for a beat, which is misleading because we *are*
-  // about to navigate them into a thread.
-  if (toUserId && handledRef.current === toUserId) {
+  // Show the "Opening conversation…" spinner whenever a valid ?to= is
+  // in flight or about to navigate. We exit this branch the instant
+  // router.replace flushes (toUserId becomes null on the next render).
+  if (toUserIdValid && (startQ.isPending || startQ.data)) {
     return (
       <div className="mx-auto flex max-w-4xl flex-col items-center justify-center gap-3 py-20 text-center">
         <Spinner />
