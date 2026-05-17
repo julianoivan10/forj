@@ -1,12 +1,19 @@
 import { db, notifications, type NewNotification } from '@forj/db';
+import { inngest } from '../inngest/client';
 import { dispatchEmail } from './email-dispatch';
 
 /**
  * Central entry point for in-app + email notifications.
  *
  * Two channels, decoupled:
- *   1. **In-app**: row inserted into `notifications`. Drives the bell + inbox.
- *   2. **Email**: rendered + sent via Resend. Best-effort, never blocks.
+ *   1. **In-app**: row inserted into `notifications` synchronously.
+ *      Drives the bell + inbox — has to land immediately.
+ *   2. **Email**: enqueued via Inngest (`notification/dispatch-email`)
+ *      for retried background delivery. The mutation returns fast;
+ *      Resend RTT + flakiness is absorbed by the queue. If Inngest
+ *      isn't configured (local dev without the CLI) we fall back to
+ *      inline `dispatchEmail()` so dev runs identically to prod from
+ *      the user's point of view.
  *
  * Both channels swallow their own errors so that a downstream failure
  * (Resend down, DB hiccup) never bubbles up to the procedure call. The
@@ -50,9 +57,6 @@ export async function notify(input: {
   }
 
   // ── 2. Email ──
-  // Awaited (not fire-and-forget) so serverless lambdas don't freeze the
-  // background work. dispatchEmail() never throws — its own try/catch.
-  //
   // We synthesise canonical fallbacks from the entity reference so individual
   // callsites don't have to remember to copy `contractId`/`jobId` into
   // metadata. The dispatcher prefers explicit metadata fields but falls back
@@ -68,9 +72,9 @@ export async function notify(input: {
     fallbackMeta.proposalId = input.entityId;
   }
 
-  await dispatchEmail({
+  const dispatchPayload = {
     userId: input.userId,
-    type: input.type,
+    type: input.type as string,
     title: input.title,
     body: input.body ?? null,
     metadata: {
@@ -79,6 +83,38 @@ export async function notify(input: {
       // Make actionUrl available to the loose templates (proposal_rejected
       // etc) without requiring every callsite to copy it into metadata.
       ...(input.actionUrl ? { actionUrl: input.actionUrl } : {}),
-    },
-  });
+    } as Record<string, unknown>,
+  };
+
+  // Prefer Inngest in any environment where the event key is set —
+  // that covers cloud production AND local dev with the Inngest CLI
+  // running (`pnpm dlx inngest-cli@latest dev` sets the key
+  // automatically). Anywhere else (CI, dev without the CLI), fall
+  // back to inline dispatch so behaviour stays consistent.
+  const useInngest = Boolean(process.env.INNGEST_EVENT_KEY);
+  if (useInngest) {
+    try {
+      await inngest.send({
+        name: 'notification/dispatch-email',
+        data: dispatchPayload,
+      });
+    } catch (err) {
+      // Inngest can't accept the event (network blip, rate limit) —
+      // log and fall through to direct dispatch so the email still
+      // has a chance to land. We don't re-throw because the caller's
+      // mutation succeeded; email is best-effort.
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('[notify] inngest.send failed, falling back to inline:', err);
+      }
+      await dispatchEmail({
+        ...dispatchPayload,
+        type: dispatchPayload.type as Parameters<typeof dispatchEmail>[0]['type'],
+      });
+    }
+  } else {
+    await dispatchEmail({
+      ...dispatchPayload,
+      type: dispatchPayload.type as Parameters<typeof dispatchEmail>[0]['type'],
+    });
+  }
 }

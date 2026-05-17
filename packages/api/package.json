@@ -15,19 +15,20 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@trpc/server": "^11.0.0-rc.660",
-    "@upstash/ratelimit": "^2.0.5",
-    "@upstash/redis": "^1.34.3",
     "@forj/contracts": "workspace:*",
     "@forj/db": "workspace:*",
     "@forj/email": "workspace:*",
+    "@trpc/server": "^11.0.0-rc.660",
+    "@upstash/ratelimit": "^2.0.5",
+    "@upstash/redis": "^1.34.3",
+    "inngest": "^4.4.0",
     "superjson": "^2.2.2",
     "viem": "^2.22.9",
     "zod": "^3.24.1"
   },
   "devDependencies": {
-    "@types/node": "^22.10.5",
     "@forj/tsconfig": "workspace:*",
+    "@types/node": "^22.10.5",
     "typescript": "^5.7.3"
   }
 }

@@ -79,27 +79,33 @@ reduction). Memory pressure stays low because each query is small
 
 ---
 
-## 2. Inngest layer for notifications resilience (~2h)
+## 2. Inngest layer for notifications resilience — ✅ SHIPPED
 
-Today `notify()` (`packages/api/src/services/notifications.ts`) calls
-`dispatchEmail()` inline. If Resend has a hiccup, the email is
-silently dropped — no retry.
+Email delivery now flows through Inngest:
 
-Pattern:
+- `packages/api/src/inngest/client.ts` — `inngest` client + typed
+  `ForjEvents` map.
+- `packages/api/src/inngest/functions/dispatch-email.ts` — the
+  `dispatchEmailFn` function. Triggered by
+  `notification/dispatch-email` event. Uses `step.run('send-email')`
+  for replay-safe retries (Inngest default 4 attempts, exponential
+  backoff). Concurrency cap 5 to be kind to Resend.
+- `apps/web/app/api/inngest/route.ts` — endpoint registered with
+  Inngest's `serve()` adapter (`inngest/next`).
+- `notify()` in `services/notifications.ts` now sends an Inngest
+  event for email when `INNGEST_EVENT_KEY` is set, else falls back
+  to inline `dispatchEmail()` so dev without the Inngest CLI still
+  works.
+- `.env` gained `INNGEST_DEV=1` for local; `.env.example` documents
+  the dev-vs-prod split.
 
-1. `notify()` instead does `inngest.send({ name: 'notif.delivery', data: {...} })`.
-2. Inngest function consumes the event, retries on failure with
-   exponential backoff (`@inngest/sdk` does this by default with step
-   functions).
-3. Same function emits in-app row AND triggers email — separately
-   retriable.
+In-app notification row is still written synchronously (instant bell
+badge); only the email side gained retry resilience.
 
-Env already has `INNGEST_EVENT_KEY` + `INNGEST_SIGNING_KEY` slots in
-`.env.example`. Set up the Inngest dev server (`npx inngest-cli dev`)
-and wire `/api/inngest` route.
-
-Don't bother until message volume grows past ~100/day or you see real
-delivery drops — premature for MVP.
+**Remaining**: add more functions as background workloads appear
+(e.g. payout reminders, dispute SLA escalations). Single drop-in
+file in `inngest/functions/` + push the export to
+`inngest/index.ts`.
 
 ---
 
@@ -166,7 +172,10 @@ From the mobile audit not addressed this session (all "low" severity):
 | `6e2d2cb` | Messages hung-spinner fix (utils.client.query → utils.fetch) + 3 security hardenings (fileUrl whitelist, per-receiver rate limit, soft-deleted user filtering) |
 | `92d644e` | Emergency recovery Phase 1: design doc + admin.relinkUser + admin_audit_log table + OPERATIONS.md §8 runbook |
 | `d1ba5df` | Real hung-spinner fix (useQuery hook, was a useEffect-cleanup race) + Phase 2 Settings → Security panel |
-| (next)    | N+1 fix in message.getConversations (2N+1 → 3 queries via DISTINCT ON + inArray batch) |
+| `519995d` | N+1 fix in message.getConversations (2N+1 → 3 queries via DISTINCT ON + inArray batch) |
+| `398ced8` | Message cursor pagination ("Load older" button) + Settings overhaul (Profile/Account/Security) |
+| `6fc8eb4` | Emergency recovery Phase 3 (dashboard nudge) + Phase 4 (/help/disputes-and-recovery page) |
+| (next)    | Inngest retry layer: email dispatch now async + retried |
 
 On-chain state on Base Sepolia (current, multisig fully in control):
 
