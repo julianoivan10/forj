@@ -151,12 +151,31 @@ export const userRouter = createTRPCRouter({
         hourlyRate: z.number().positive().optional(),
         country: z.string().max(80).optional(),
         timezone: z.string().max(80).optional(),
+        // Portfolio URL — Behance, personal site, GitHub, etc. Stored
+        // in the legacy `portfolioIpfsHash` column (named when we
+        // expected only IPFS hashes). Accept any https URL OR empty
+        // string (used to clear the field).
+        portfolioUrl: z
+          .string()
+          .max(500)
+          .refine(
+            (v) => v === '' || /^https?:\/\//.test(v),
+            'Must be a valid URL starting with http:// or https://',
+          )
+          .optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const patch: Record<string, unknown> = { ...input };
+      // Build the column-level patch — input keys aren't 1:1 with
+      // DB columns (portfolioUrl → portfolioIpfsHash, hourlyRate is
+      // text in DB so we stringify).
+      const { portfolioUrl, ...rest } = input;
+      const patch: Record<string, unknown> = { ...rest };
       if (input.avatarUrl === '') patch.avatarUrl = null;
       if (input.hourlyRate != null) patch.hourlyRate = input.hourlyRate.toString();
+      if (portfolioUrl !== undefined) {
+        patch.portfolioIpfsHash = portfolioUrl === '' ? null : portfolioUrl;
+      }
 
       const [updated] = await ctx.db
         .update(users)

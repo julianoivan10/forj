@@ -13,6 +13,11 @@ import {
   AlertTriangle,
   Loader2,
   Lock,
+  Plus,
+  X,
+  Link as LinkIcon,
+  Globe,
+  CheckCircle2,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { api } from '@/lib/trpc/client';
@@ -110,11 +115,26 @@ export default function DashboardSettingsPage() {
 /* ═══════════════════════════════════════════════════════════════
    PROFILE TAB
    ═══════════════════════════════════════════════════════════════ */
-function ProfileTab({ user, onSave }: { user: NonNullable<ReturnType<typeof useAuth>['user']>; onSave: () => void }) {
+function ProfileTab({
+  user,
+  onSave,
+}: {
+  user: NonNullable<ReturnType<typeof useAuth>['user']>;
+  onSave: () => void;
+}) {
+  // Core identity
   const [displayName, setDisplayName] = useState(user.displayName ?? '');
   const [bio, setBio] = useState(user.bio ?? '');
+  // Freelancer fields — hourly rate + skills + portfolio. Shown to
+  // everyone (clients who never escalated have these empty, no harm)
+  // since the same form is used post-lazy-escalation.
   const [hourlyRate, setHourlyRate] = useState(user.hourlyRate ?? '');
+  const [skills, setSkills] = useState<string[]>(user.skills ?? []);
+  const [skillInput, setSkillInput] = useState('');
+  const [portfolioUrl, setPortfolioUrl] = useState(user.portfolioIpfsHash ?? '');
+  // Location
   const [country, setCountry] = useState(user.country ?? '');
+  const [timezone, setTimezone] = useState(user.timezone ?? '');
 
   const updateMut = api.user.updateProfile.useMutation({
     onSuccess: () => {
@@ -124,12 +144,27 @@ function ProfileTab({ user, onSave }: { user: NonNullable<ReturnType<typeof useA
     onError: (err) => toast.error(err.message),
   });
 
+  const addSkill = () => {
+    const v = skillInput.trim();
+    if (!v || skills.includes(v) || skills.length >= 20) return;
+    setSkills((prev) => [...prev, v]);
+    setSkillInput('');
+  };
+  const removeSkill = (s: string) =>
+    setSkills((prev) => prev.filter((x) => x !== s));
+
   const handleSave = () => {
     updateMut.mutate({
       displayName: displayName.trim() || undefined,
       bio: bio.trim() || undefined,
+      // Always send `skills` and `portfolioUrl` (even empty) so the
+      // user can clear them — the API treats `undefined` as "no
+      // change", `[]` / `''` as "clear".
+      skills,
       hourlyRate: hourlyRate ? Number(hourlyRate) : undefined,
       country: country.trim() || undefined,
+      timezone: timezone.trim() || undefined,
+      portfolioUrl: portfolioUrl.trim(),
     });
   };
 
@@ -155,39 +190,220 @@ function ProfileTab({ user, onSave }: { user: NonNullable<ReturnType<typeof useA
         </div>
       </div>
 
-      {/* Form */}
-      <div className="space-y-4 rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-background-secondary)] p-5">
+      {/* Identity — name + bio */}
+      <ProfileSection
+        title="About you"
+        description="What clients and freelancers see on your public profile."
+      >
         <div>
           <Label htmlFor="displayName">Display name</Label>
-          <Input id="displayName" value={displayName} onChange={(e) => setDisplayName(e.target.value.slice(0, 80))} className="mt-1.5" />
+          <Input
+            id="displayName"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value.slice(0, 80))}
+            className="mt-1.5"
+          />
         </div>
         <div>
           <Label htmlFor="bio">Bio</Label>
-          <Textarea id="bio" value={bio} onChange={(e) => setBio(e.target.value.slice(0, 500))} rows={3} className="mt-1.5" />
-          <p className="mt-1 text-right text-xs text-[var(--color-text-tertiary)]">{bio.length}/500</p>
+          <Textarea
+            id="bio"
+            value={bio}
+            onChange={(e) => setBio(e.target.value.slice(0, 500))}
+            rows={3}
+            className="mt-1.5"
+            placeholder="One or two lines about your work, focus, and what you bring to a project."
+          />
+          <p className="mt-1 text-right text-xs text-[var(--color-text-tertiary)]">
+            {bio.length}/500
+          </p>
+        </div>
+      </ProfileSection>
+
+      {/* Freelancer-side details — skills + rate + portfolio. Hidden
+          label-wise for client-only users but the fields still render
+          (the existing post-escalation row can have data here). */}
+      <ProfileSection
+        title="Freelancer details"
+        description="Shown when clients evaluate you for a job or service. Required to apply to a job."
+      >
+        <div>
+          <Label htmlFor="skills">Skills</Label>
+          <div className="mt-1.5 flex gap-2">
+            <Input
+              id="skills"
+              value={skillInput}
+              onChange={(e) => setSkillInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ',') {
+                  e.preventDefault();
+                  addSkill();
+                }
+              }}
+              placeholder="e.g. React, Solidity, Brand identity…"
+              maxLength={40}
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={addSkill}
+              disabled={!skillInput.trim() || skills.length >= 20}
+              leftIcon={<Plus />}
+            >
+              Add
+            </Button>
+          </div>
+          {skills.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {skills.map((s) => (
+                <span
+                  key={s}
+                  className="inline-flex items-center gap-1 rounded-[var(--radius-full)] border border-[var(--color-border-default)] bg-[var(--color-background-elevated)] px-2.5 py-1 text-xs text-[var(--color-text-primary)]"
+                >
+                  {s}
+                  <button
+                    type="button"
+                    onClick={() => removeSkill(s)}
+                    className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]"
+                    aria-label={`Remove ${s}`}
+                  >
+                    <X className="size-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-1.5 text-xs text-[var(--color-text-tertiary)]">
+              Pick 1–20. Clients filter on these.
+            </p>
+          )}
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <Label htmlFor="hourlyRate">Hourly rate (USDC)</Label>
-            <Input id="hourlyRate" type="number" value={hourlyRate} onChange={(e) => setHourlyRate(e.target.value)} className="mt-1.5" placeholder="50" />
+            <Input
+              id="hourlyRate"
+              type="number"
+              inputMode="decimal"
+              value={hourlyRate}
+              onChange={(e) => setHourlyRate(e.target.value)}
+              className="mt-1.5"
+              placeholder="50"
+            />
           </div>
           <div>
-            <Label htmlFor="country">Country</Label>
-            <Input id="country" value={country} onChange={(e) => setCountry(e.target.value.slice(0, 80))} className="mt-1.5" placeholder="e.g. Indonesia" />
+            <Label htmlFor="portfolio">Portfolio URL</Label>
+            <div className="relative mt-1.5">
+              <LinkIcon
+                aria-hidden
+                className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--color-text-tertiary)]"
+              />
+              <Input
+                id="portfolio"
+                type="url"
+                value={portfolioUrl}
+                onChange={(e) => setPortfolioUrl(e.target.value.slice(0, 500))}
+                placeholder="https://your-portfolio.com"
+                className="pl-8"
+              />
+            </div>
           </div>
         </div>
-        <div className="flex justify-end pt-2">
-          <Button onClick={handleSave} isLoading={updateMut.isPending} leftIcon={<Save />}>
-            Save changes
-          </Button>
+      </ProfileSection>
+
+      {/* Location — country + timezone. Clients use these to match
+          time-zone overlap; freelancers use them for tax / payment
+          jurisdiction context. */}
+      <ProfileSection
+        title="Location"
+        description="Helps match collaborators who share working hours."
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="country">Country</Label>
+            <Input
+              id="country"
+              value={country}
+              onChange={(e) => setCountry(e.target.value.slice(0, 80))}
+              className="mt-1.5"
+              placeholder="e.g. Indonesia"
+            />
+          </div>
+          <div>
+            <Label htmlFor="timezone">Timezone</Label>
+            <div className="relative mt-1.5">
+              <Globe
+                aria-hidden
+                className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--color-text-tertiary)]"
+              />
+              <Input
+                id="timezone"
+                value={timezone}
+                onChange={(e) => setTimezone(e.target.value.slice(0, 80))}
+                placeholder="e.g. Asia/Jakarta"
+                className="pl-8"
+                list="tz-suggestions"
+              />
+              {/* Datalist for common IANA timezones — autocomplete
+                  hints, not enforced. Users in unusual zones can
+                  still type freely. */}
+              <datalist id="tz-suggestions">
+                <option value="Asia/Jakarta" />
+                <option value="Asia/Singapore" />
+                <option value="Asia/Manila" />
+                <option value="Asia/Tokyo" />
+                <option value="Asia/Kolkata" />
+                <option value="Europe/London" />
+                <option value="Europe/Berlin" />
+                <option value="America/New_York" />
+                <option value="America/Los_Angeles" />
+                <option value="Australia/Sydney" />
+              </datalist>
+            </div>
+          </div>
         </div>
+      </ProfileSection>
+
+      <div className="flex justify-end">
+        <Button onClick={handleSave} isLoading={updateMut.isPending} leftIcon={<Save />}>
+          Save changes
+        </Button>
       </div>
     </div>
   );
 }
 
+/** Card wrapper for a logical section inside ProfileTab. Keeps the
+ *  three sections (about / freelancer / location) visually grouped
+ *  without the whole page being one giant scroll. */
+function ProfileSection({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-background-secondary)] p-5">
+      <h3 className="font-display text-base font-semibold text-[var(--color-text-primary)]">
+        {title}
+      </h3>
+      {description && (
+        <p className="mt-1 text-xs text-[var(--color-text-secondary)]">{description}</p>
+      )}
+      <div className="mt-4 space-y-4">{children}</div>
+    </div>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════════════
-   ACCOUNT TAB — wallet, details, data export, delete account
+   ACCOUNT TAB — wallet, identity, data export
+   ───────────────────────────────────────────────────────────────
+   Delete-account moved to the Security tab's Danger Zone where
+   destructive actions live alongside the recovery/sign-out controls.
+   The shape here is now strictly "who you are" + "your money".
    ═══════════════════════════════════════════════════════════════ */
 function AccountTab({ user }: { user: NonNullable<ReturnType<typeof useAuth>['user']> }) {
   const tierMeta = BADGE_TIER_META[user.badgeTier as keyof typeof BADGE_TIER_META] ?? BADGE_TIER_META.none;
@@ -203,7 +419,33 @@ function AccountTab({ user }: { user: NonNullable<ReturnType<typeof useAuth>['us
           Account details
         </h3>
         <dl className="mt-4 space-y-3 text-sm">
-          <Row label="Email" value={user.email ?? 'Not set'} />
+          <Row
+            label="Email"
+            value={
+              user.email ? (
+                // Privy verifies email at link time (magic-link or
+                // OAuth), so anything on file IS verified. Surface
+                // that confidence to the user so they don't worry.
+                <span className="inline-flex items-center gap-1.5">
+                  {user.email}
+                  <span
+                    title="Verified by Privy at sign-in"
+                    className="inline-flex items-center gap-0.5 rounded-[var(--radius-full)] bg-[var(--color-brand-primary)]/10 px-1.5 py-0.5 text-[10px] font-semibold text-[var(--color-brand-primary)]"
+                  >
+                    <CheckCircle2 className="size-3" />
+                    Verified
+                  </span>
+                </span>
+              ) : (
+                <span className="text-[var(--color-text-tertiary)]">
+                  Not set —{' '}
+                  <span className="text-[var(--color-text-secondary)]">
+                    add a sign-in method in Security
+                  </span>
+                </span>
+              )
+            }
+          />
           <Row label="Username" value={user.username ? `@${user.username}` : 'Not set'} />
           <Row
             label="Badge tier"
@@ -219,11 +461,10 @@ function AccountTab({ user }: { user: NonNullable<ReturnType<typeof useAuth>['us
         </dl>
       </div>
 
-      {/* Data Export */}
+      {/* Data Export — GDPR-style download. Kept in Account because
+          it's about what we hold ON YOU; the Security tab is about
+          how to protect/recover access. */}
       <DataExportCard />
-
-      {/* Delete Account */}
-      <DeleteAccountCard username={user.username ?? ''} />
     </div>
   );
 }
@@ -275,84 +516,8 @@ function DataExportCard() {
 }
 
 /* ── Delete Account Card ──────────────────────────────────────── */
-function DeleteAccountCard({ username }: { username: string }) {
-  const router = useRouter();
-  const { logout } = useAuth();
-  const [open, setOpen] = useState(false);
-  const [confirm, setConfirm] = useState('');
-
-  const deleteMut = api.user.deleteAccount.useMutation({
-    onSuccess: async () => {
-      toast.success('Account deleted');
-      await logout();
-      router.replace('/');
-    },
-    onError: (err) => toast.error(err.message),
-  });
-
-  return (
-    <>
-      <div className="rounded-[var(--radius-xl)] border border-[var(--color-error)]/30 bg-[var(--color-error)]/5 p-5">
-        <div className="flex items-start gap-3">
-          <AlertTriangle className="mt-0.5 size-5 shrink-0 text-[var(--color-error)]" />
-          <div>
-            <h3 className="font-display text-base font-semibold text-[var(--color-error)]">
-              Danger zone
-            </h3>
-            <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-              Permanently delete your account. Your profile data will be anonymised, but on-chain
-              contract history and reviews will remain for transparency.
-            </p>
-            <div className="mt-4">
-              <Button variant="destructive" onClick={() => setOpen(true)} leftIcon={<Trash2 />}>
-                Delete my account
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <Modal open={open} onOpenChange={setOpen}>
-        <ModalContent>
-          <ModalHeader>
-            <ModalTitle>Delete your account?</ModalTitle>
-            <ModalDescription>
-              This action cannot be undone. Your profile data (email, bio, avatar) will be anonymised.
-              On-chain contract history and reviews will remain public. If you have any active contracts,
-              you must complete or cancel them first.
-            </ModalDescription>
-          </ModalHeader>
-          <div className="px-6 pb-2">
-            <Label htmlFor="confirmDelete">
-              Type <code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-xs text-[var(--color-error)]">{username}</code> to confirm
-            </Label>
-            <Input
-              id="confirmDelete"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              placeholder={username}
-              className="mt-1.5"
-              autoComplete="off"
-            />
-          </div>
-          <ModalFooter>
-            <Button variant="ghost" onClick={() => { setOpen(false); setConfirm(''); }}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={confirm !== username}
-              isLoading={deleteMut.isPending}
-              onClick={() => deleteMut.mutate({ confirmUsername: confirm })}
-            >
-              Delete permanently
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
-    </>
-  );
-}
+// (DeleteAccountCard moved to components/settings/delete-account-card.tsx —
+// rendered inside the Security tab's Danger Zone now.)
 
 /* ═══════════════════════════════════════════════════════════════
    NOTIFICATIONS TAB — per-type in-app + email preferences

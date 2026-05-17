@@ -4,7 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Check, CheckCheck, Send, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Check, CheckCheck, ChevronUp, Loader2, Send, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/use-auth';
 import { api } from '@/lib/trpc/client';
@@ -12,14 +12,41 @@ import { Button, Skeleton, UserAvatar, Badge } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { BADGE_TIER_META } from '@/lib/constants';
 
+// Page size for the live "tail" + each "Load older" click. Server cap
+// is 100 — we sit at 50 so a fresh open is fast AND a single Load
+// older still pulls meaningful history. Bump to 100 if real-world
+// usage shows users mash the button repeatedly.
+const PAGE_SIZE = 50;
+
+type ThreadMessage = {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  receiverId: string;
+  content: string;
+  fileUrl: string | null;
+  type: 'text' | 'file';
+  isRead: boolean;
+  createdAt: Date;
+  sender?: {
+    id: string;
+    username: string | null;
+    displayName: string | null;
+    avatarUrl: string | null;
+  };
+};
+
 export default function ConversationThreadPage() {
   const { user: me } = useAuth();
   const router = useRouter();
   const params = useParams<{ conversationId: string }>();
   const conversationId = decodeURIComponent(params.conversationId);
 
+  // Live "tail" — newest PAGE_SIZE messages, polled. This is the only
+  // page that re-fetches; older pages live in `olderMessages` state
+  // and never refetch (they're immutable history).
   const thread = api.message.getMessages.useQuery(
-    { conversationId, limit: 100 },
+    { conversationId, limit: PAGE_SIZE },
     {
       // 8s is snappy enough to feel real-time without hammering the server
       // when both parties are idle. Background tab pauses polling automatically
@@ -31,6 +58,28 @@ export default function ConversationThreadPage() {
     },
   );
 
+  // History pages loaded via "Load older" — prepended to the live tail
+  // for display. Reset when the conversation changes (route swap).
+  const [olderMessages, setOlderMessages] = useState<ThreadMessage[]>([]);
+  const [hasMoreOlder, setHasMoreOlder] = useState(true);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+
+  useEffect(() => {
+    setOlderMessages([]);
+    setHasMoreOlder(true);
+  }, [conversationId]);
+
+  // Seed `hasMoreOlder` from the initial server response. After that,
+  // each Load-older call updates it from its own response. Skip once
+  // we've started loading older pages — server's `hasMore` for the
+  // live tail is about messages OLDER than the tail's oldest, which
+  // is exactly what we want to track here.
+  useEffect(() => {
+    if (thread.data && olderMessages.length === 0) {
+      setHasMoreOlder(thread.data.hasMore);
+    }
+  }, [thread.data, olderMessages.length]);
+
   const utils = api.useUtils();
   const markRead = api.message.markRead.useMutation();
   const sendMut = api.message.send.useMutation({
@@ -38,8 +87,8 @@ export default function ConversationThreadPage() {
     // so the UI feels snappy instead of waiting on the roundtrip.
     onMutate: async (vars) => {
       setDraft('');
-      await utils.message.getMessages.cancel({ conversationId, limit: 100 });
-      const prev = utils.message.getMessages.getData({ conversationId, limit: 100 });
+      await utils.message.getMessages.cancel({ conversationId, limit: PAGE_SIZE });
+      const prev = utils.message.getMessages.getData({ conversationId, limit: PAGE_SIZE });
       if (prev && me) {
         const optimistic = {
           id: `optimistic-${Date.now()}`,
@@ -59,7 +108,7 @@ export default function ConversationThreadPage() {
           },
         };
         utils.message.getMessages.setData(
-          { conversationId, limit: 100 },
+          { conversationId, limit: PAGE_SIZE },
           { ...prev, messages: [...prev.messages, optimistic] },
         );
       }
@@ -68,17 +117,64 @@ export default function ConversationThreadPage() {
     onError: (err, _vars, ctx) => {
       // Roll back the optimistic message on failure.
       if (ctx?.prev) {
-        utils.message.getMessages.setData({ conversationId, limit: 100 }, ctx.prev);
+        utils.message.getMessages.setData({ conversationId, limit: PAGE_SIZE }, ctx.prev);
       }
       toast.error(err.message);
     },
     onSettled: () => {
       // Don't block the UI on the refetch — fire and forget.
-      utils.message.getMessages.invalidate({ conversationId, limit: 100 });
+      utils.message.getMessages.invalidate({ conversationId, limit: PAGE_SIZE });
       utils.message.getConversations.invalidate();
       utils.message.unreadCount.invalidate();
     },
   });
+
+  // Fetch the page of messages older than what we currently show.
+  // Cursor = createdAt of the oldest displayed message. Prepends the
+  // page to `olderMessages` so the live tail stays untouched. Scroll
+  // position is captured before the prepend and restored after, so
+  // the user stays anchored on the message they were reading instead
+  // of getting yanked to the top.
+  const handleLoadOlder = async () => {
+    if (loadingOlder || !hasMoreOlder) return;
+    setLoadingOlder(true);
+    const scrollEl = scrollRef.current;
+    const prevHeight = scrollEl?.scrollHeight ?? 0;
+    const prevTop = scrollEl?.scrollTop ?? 0;
+    try {
+      // Oldest currently-displayed createdAt = our cursor. Pull from
+      // `olderMessages` first (already paginated history), fall back to
+      // the live tail.
+      const oldest =
+        olderMessages[0] ?? thread.data?.messages[0] ?? null;
+      if (!oldest) {
+        setLoadingOlder(false);
+        return;
+      }
+      const data = await utils.message.getMessages.fetch({
+        conversationId,
+        limit: PAGE_SIZE,
+        before: oldest.createdAt,
+      });
+      setOlderMessages((prev) => [...data.messages, ...prev]);
+      setHasMoreOlder(data.hasMore);
+      // Restore scroll anchor: the new content pushed everything down
+      // by (newHeight - prevHeight) px, so add that delta back to
+      // scrollTop. Runs in rAF so the DOM has flushed.
+      requestAnimationFrame(() => {
+        const el = scrollRef.current;
+        if (!el) return;
+        const newHeight = el.scrollHeight;
+        el.scrollTop = prevTop + (newHeight - prevHeight);
+      });
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : 'Could not load older messages',
+      );
+    } finally {
+      setLoadingOlder(false);
+    }
+  };
 
   const [draft, setDraft] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -122,18 +218,29 @@ export default function ConversationThreadPage() {
       BADGE_TIER_META.none
     : null;
 
+  // Combined display list: older history pages (prepended) + live tail.
+  // Dedupe by id in case an optimistic message lands in both (rare —
+  // optimistic is on the live tail key, but defensive).
+  const displayedMessages = useMemo(() => {
+    const tail = thread.data?.messages ?? [];
+    if (olderMessages.length === 0) return tail;
+    const olderIds = new Set(olderMessages.map((m) => m.id));
+    const dedupedTail = tail.filter((m) => !olderIds.has(m.id));
+    return [...olderMessages, ...dedupedTail];
+  }, [olderMessages, thread.data?.messages]);
+
   // Two-tier grouping: outer by calendar day, inner into "bursts" of consecutive
   // messages from the same sender within a 5-minute window. Bursts let us
   // collapse repeated avatars + tighten vertical spacing so the thread reads
   // more like a real chat app and less like a flat email list.
   const grouped = useMemo(() => {
-    if (!thread.data) return [];
-    const days = groupByDay(thread.data.messages);
+    if (displayedMessages.length === 0) return [];
+    const days = groupByDay(displayedMessages);
     return days.map((day) => ({
       ...day,
       bursts: groupBurst(day.messages),
     }));
-  }, [thread.data]);
+  }, [displayedMessages]);
 
   // Permission / missing-conversation error → gate early.
   if (thread.isError) {
@@ -239,7 +346,7 @@ export default function ConversationThreadPage() {
               />
             ))}
           </div>
-        ) : thread.data.messages.length === 0 ? (
+        ) : displayedMessages.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
             <div className="flex size-14 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--color-background-tertiary)]">
               <Send className="size-5 text-[var(--color-text-tertiary)]" />
@@ -253,6 +360,35 @@ export default function ConversationThreadPage() {
           </div>
         ) : (
           <div className="mt-auto flex flex-col gap-6">
+            {/* Load-older button — only when there's confirmed older
+                history. Hidden once we've hit the start of the thread
+                so users don't keep clicking into emptiness. */}
+            {hasMoreOlder && (
+              <div className="flex justify-center pt-1">
+                <button
+                  type="button"
+                  onClick={handleLoadOlder}
+                  disabled={loadingOlder}
+                  className={cn(
+                    'inline-flex items-center gap-2 rounded-[var(--radius-full)] border border-[var(--color-border-default)] bg-[var(--color-background-secondary)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-secondary)] transition-colors',
+                    'hover:border-[var(--color-border-strong)] hover:text-[var(--color-text-primary)]',
+                    'disabled:cursor-not-allowed disabled:opacity-60',
+                  )}
+                >
+                  {loadingOlder ? (
+                    <>
+                      <Loader2 className="size-3 animate-spin" />
+                      Loading older…
+                    </>
+                  ) : (
+                    <>
+                      <ChevronUp className="size-3" />
+                      Load older messages
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
             <AnimatePresence initial={false}>
               {grouped.map((group) => (
                 <div key={group.day} className="flex flex-col gap-4">

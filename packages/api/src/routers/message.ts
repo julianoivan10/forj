@@ -1,11 +1,11 @@
 import { TRPCError } from '@trpc/server';
 import {
   and,
-  asc,
   desc,
   eq,
   inArray,
   isNull,
+  lt,
   messages,
   or,
   sql,
@@ -177,11 +177,38 @@ export const messageRouter = createTRPCRouter({
    * Fetch messages in a conversation. Verifies the caller is a participant
    * by decoding the conversationId.
    */
+  /**
+   * Fetch a window of messages in a conversation. Cursor-paginated so
+   * long threads can lazily load older history without dragging the
+   * whole conversation over the wire.
+   *
+   * Behaviour:
+   *   - `before` undefined → return the newest `limit` messages.
+   *   - `before` set → return the newest `limit` messages whose
+   *     createdAt is strictly less than the cursor.
+   *   - Internally we fetch DESC + limit, then reverse to ASC for the
+   *     caller so the UI can render top-down without re-sorting.
+   *   - `hasMore` is the "would we have returned more if limit was
+   *     bigger" flag — used by the client to decide whether to show
+   *     a "Load older" button.
+   *   - `nextCursor` is the createdAt of the OLDEST message in the
+   *     current page. Pass it back as `before` to fetch the page
+   *     before this one.
+   *
+   * Auth: caller must be a participant in the conversation. Decoded
+   * from the composite conversationId (`smaller:larger` of user ids).
+   *
+   * Performance: the `messages_conversation_created_idx` composite
+   * index covers (conversationId, createdAt) — both the equality
+   * predicate and the ORDER BY DESC walk the same index in one scan.
+   */
   getMessages: protectedProcedure
     .input(
       z.object({
         conversationId: z.string(),
         limit: z.number().min(1).max(100).default(50),
+        // Date cursor for "load older". Undefined = first page (newest).
+        before: z.date().optional(),
       }),
     )
     .query(async ({ ctx, input }) => {
@@ -189,16 +216,40 @@ export const messageRouter = createTRPCRouter({
       const otherId = otherParty(input.conversationId, me);
       if (!otherId) throw new TRPCError({ code: 'FORBIDDEN' });
 
-      const rows = await ctx.db.query.messages.findMany({
-        where: eq(messages.conversationId, input.conversationId),
-        orderBy: [asc(messages.createdAt)],
-        limit: input.limit,
+      // Fetch one row beyond the requested limit so we can tell the
+      // caller whether there's MORE history past this page without a
+      // second roundtrip. Trimmed back to `limit` before returning.
+      const probeLimit = input.limit + 1;
+
+      const where = input.before
+        ? and(
+            eq(messages.conversationId, input.conversationId),
+            lt(messages.createdAt, input.before),
+          )
+        : eq(messages.conversationId, input.conversationId);
+
+      // Newest-first server-side so `limit` clips the right end of the
+      // window. Reverse to ASC for the caller — chats render
+      // chronologically (oldest at top of the current page, newest at
+      // the bottom).
+      const rowsDesc = await ctx.db.query.messages.findMany({
+        where,
+        orderBy: [desc(messages.createdAt)],
+        limit: probeLimit,
         with: {
           sender: {
             columns: { id: true, username: true, displayName: true, avatarUrl: true },
           },
         },
       });
+
+      const hasMore = rowsDesc.length > input.limit;
+      const trimmed = hasMore ? rowsDesc.slice(0, input.limit) : rowsDesc;
+      const rows = trimmed.slice().reverse(); // ASC for display
+      // Cursor = createdAt of the oldest message we just returned.
+      // null when there's no more history in either direction (which
+      // we infer from `!hasMore`).
+      const nextCursor = hasMore && rows.length > 0 ? rows[0].createdAt : null;
 
       const other = await ctx.db.query.users.findFirst({
         where: eq(users.id, otherId),
@@ -214,7 +265,7 @@ export const messageRouter = createTRPCRouter({
       });
       if (!other) throw new TRPCError({ code: 'NOT_FOUND', message: 'Other user not found' });
 
-      return { messages: rows, other };
+      return { messages: rows, other, hasMore, nextCursor };
     }),
 
   /**
