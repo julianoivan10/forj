@@ -1,5 +1,16 @@
 import { TRPCError } from '@trpc/server';
-import { and, asc, desc, eq, isNull, messages, or, sql, users } from '@forj/db';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  isNull,
+  messages,
+  or,
+  sql,
+  users,
+} from '@forj/db';
 import { z } from 'zod';
 import { checkRateLimit, RATE_LIMITS } from '../middleware/rate-limit';
 import { notify } from '../services/notifications';
@@ -79,42 +90,84 @@ export const messageRouter = createTRPCRouter({
 
     if (convos.length === 0) return [];
 
-    // 2. Fetch each conversation's latest message content + parties.
-    // Done as parallel findFirst calls; cheap for the expected MVP volumes and
-    // avoids window functions that Drizzle struggles to type.
-    const details = await Promise.all(
-      convos.map(async (c) => {
-        const lastMessage = await ctx.db.query.messages.findFirst({
-          where: eq(messages.conversationId, c.conversationId),
-          orderBy: [desc(messages.createdAt)],
-          columns: { id: true, content: true, senderId: true, receiverId: true, createdAt: true, type: true },
-        });
-        const otherId = otherParty(c.conversationId, me);
-        // Skip soft-deleted accounts — the inbox shouldn't surface
-        // conversations with anonymised users. They're filtered out
-        // by the `.filter(d => d.other !== null)` below.
-        const other = otherId
-          ? await ctx.db.query.users.findFirst({
-              where: and(eq(users.id, otherId), isNull(users.deletedAt)),
-              columns: {
-                id: true,
-                username: true,
-                displayName: true,
-                avatarUrl: true,
-                workScore: true,
-                badgeTier: true,
-              },
+    // Was 2N+1 — one findFirst per conversation for the last message,
+    // another for the other-party user. Replaced with two batch
+    // queries + an in-memory join. For a user with 20 conversations:
+    //   before: 1 + 20 + 20 = 41 round trips
+    //   after:  1 + 1  + 1  = 3 round trips
+    // Window function for "last message per conversation" uses
+    // Postgres `DISTINCT ON` via Drizzle's selectDistinctOn helper —
+    // same plan as the equivalent window query but simpler to read.
+    const conversationIds = convos.map((c) => c.conversationId);
+    const otherIds = conversationIds
+      .map((cid) => otherParty(cid, me))
+      .filter((id): id is string => id !== null);
+
+    // 2. Last message per conversation. ORDER BY must lead with the
+    // DISTINCT ON column (Postgres requirement) — conversationId
+    // first, then createdAt DESC picks the newest row per group.
+    const lastMessages =
+      conversationIds.length === 0
+        ? []
+        : await ctx.db
+            .selectDistinctOn([messages.conversationId], {
+              conversationId: messages.conversationId,
+              id: messages.id,
+              content: messages.content,
+              senderId: messages.senderId,
+              receiverId: messages.receiverId,
+              createdAt: messages.createdAt,
+              type: messages.type,
             })
-          : null;
-        return {
-          conversationId: c.conversationId,
-          lastMessageAt: c.lastMessageAt,
-          unreadCount: Number(c.unreadCount ?? 0),
-          lastMessage: lastMessage ?? null,
-          other: other ?? null,
-        };
-      }),
-    );
+            .from(messages)
+            .where(inArray(messages.conversationId, conversationIds))
+            .orderBy(messages.conversationId, desc(messages.createdAt));
+
+    // 3. Other parties — batch fetch, filter soft-deleted in-DB so we
+    // don't pull anonymised PII back over the wire.
+    const otherUsers =
+      otherIds.length === 0
+        ? []
+        : await ctx.db.query.users.findMany({
+            where: and(inArray(users.id, otherIds), isNull(users.deletedAt)),
+            columns: {
+              id: true,
+              username: true,
+              displayName: true,
+              avatarUrl: true,
+              workScore: true,
+              badgeTier: true,
+            },
+          });
+
+    // In-memory join. Maps keep the per-conversation lookup at O(1).
+    const lastByConv = new Map(lastMessages.map((m) => [m.conversationId, m]));
+    const userById = new Map(otherUsers.map((u) => [u.id, u]));
+
+    const details = convos.map((c) => {
+      const otherId = otherParty(c.conversationId, me);
+      const lm = lastByConv.get(c.conversationId);
+      // Strip conversationId from the message payload — the caller
+      // already has it on the outer object, and keeping the inner
+      // shape matches what consumers expected before this rewrite.
+      const lastMessage = lm
+        ? {
+            id: lm.id,
+            content: lm.content,
+            senderId: lm.senderId,
+            receiverId: lm.receiverId,
+            createdAt: lm.createdAt,
+            type: lm.type,
+          }
+        : null;
+      return {
+        conversationId: c.conversationId,
+        lastMessageAt: c.lastMessageAt,
+        unreadCount: Number(c.unreadCount ?? 0),
+        lastMessage,
+        other: otherId ? (userById.get(otherId) ?? null) : null,
+      };
+    });
 
     // Drop any orphaned rows where the other party was deleted
     return details.filter((d) => d.other !== null);

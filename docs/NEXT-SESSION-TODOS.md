@@ -57,18 +57,25 @@ $$ LANGUAGE plpgsql;
 
 Add matching trigger for notifications.
 
-### 1c. N+1 in `message.getConversations`
+### 1c. N+1 in `message.getConversations` — ✅ SHIPPED
 
-`packages/api/src/routers/message.ts` lines 32-87 fetch latest message
-+ other-party user per conversation in a `Promise.all` loop. For a
-user with 20 conversations that's ~40 round-trips on inbox load.
+Was 2N+1 queries (1 aggregation + 1 last-message + 1 other-user
+per conversation). Now exactly **3 queries** regardless of N:
 
-Rewrite as a single SQL using:
-- Window function `ROW_NUMBER() OVER (PARTITION BY conversation_id ORDER BY created_at DESC)` to get the latest message per conversation
-- LEFT JOIN against `users` to get the other party in the same query
+1. Aggregation (unchanged): conversation_id + lastMessageAt +
+   unreadCount, grouped + ordered.
+2. `selectDistinctOn([messages.conversationId], { ... })` — one row
+   per conversation, the latest message, in a single Postgres
+   `DISTINCT ON` plan.
+3. `findMany(users) WHERE id IN (otherIds) AND deletedAt IS NULL` —
+   batch fetch of all other parties, filtering soft-deleted at the
+   DB layer.
 
-Drizzle's TS support for window functions is weak — likely needs raw
-SQL via `sql<>` template. Document the SQL in a code comment.
+Then an in-memory map join over the three result sets.
+
+For a user with 20 conversations: **41 → 3 round trips** (93%
+reduction). Memory pressure stays low because each query is small
+(< 200 rows even for power users).
 
 ---
 
@@ -157,7 +164,9 @@ From the mobile audit not addressed this session (all "low" severity):
 | `e54f497` | Messages `?to=` query handler + Contracts moved into Hiring/Work + Both mode dropped from selector |
 | `c80755d` | Lazy freelancer escalation modal + apply-to-job gating |
 | `6e2d2cb` | Messages hung-spinner fix (utils.client.query → utils.fetch) + 3 security hardenings (fileUrl whitelist, per-receiver rate limit, soft-deleted user filtering) |
-| (next)    | Emergency recovery Phase 1: design doc + admin.relinkUser + admin_audit_log table + OPERATIONS.md §8 runbook |
+| `92d644e` | Emergency recovery Phase 1: design doc + admin.relinkUser + admin_audit_log table + OPERATIONS.md §8 runbook |
+| `d1ba5df` | Real hung-spinner fix (useQuery hook, was a useEffect-cleanup race) + Phase 2 Settings → Security panel |
+| (next)    | N+1 fix in message.getConversations (2N+1 → 3 queries via DISTINCT ON + inArray batch) |
 
 On-chain state on Base Sepolia (current, multisig fully in control):
 
