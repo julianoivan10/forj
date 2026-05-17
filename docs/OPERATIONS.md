@@ -224,6 +224,25 @@ This buys you ~7 days of point-in-time recovery on the free tier.
 ## 8. Emergency account recovery
 
 > Read the design doc first: `docs/design/emergency-recovery.md`.
+>
+> **Where to do this**: every admin tool lives under `/admin/*` on
+> the main domain (not a separate subdomain yet). The user-facing
+> nav doesn't link there — admins type the URL directly:
+>
+>   - `/admin` — hub with queue counts + recent activity
+>   - `/admin/disputes` — open disputes queue
+>   - `/admin/users` — re-link + restore forms (this runbook)
+>   - `/admin/audit-log` — read-only forensic record
+>
+> Access control: `ADMIN_USER_IDS` env (comma-separated DB user
+> UUIDs). The `adminProcedure` tRPC middleware checks every call;
+> non-admin browsers can hit the URL but every query returns 401, so
+> the page renders empty. Belt-and-braces with a `noindex` meta +
+> `robots.txt` disallow on `/admin/*`.
+>
+> Production hardening when ready: front the `/admin/*` path with
+> Cloudflare Access or Vercel password protection so the URL needs
+> a second factor BEFORE the tRPC layer even sees the request.
 > That covers the full threat model + the three layered paths. This
 > section is the hands-on runbook for the manual admin re-link path
 > when automatic recovery has already failed.
