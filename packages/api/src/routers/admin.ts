@@ -1,5 +1,13 @@
 import { TRPCError } from '@trpc/server';
-import { contracts, desc, eq } from '@forj/db';
+import {
+  adminAuditLog,
+  and,
+  contracts,
+  desc,
+  eq,
+  isNull,
+  users,
+} from '@forj/db';
 import { z } from 'zod';
 import {
   EscrowVerificationError,
@@ -151,4 +159,166 @@ export const adminRouter = createTRPCRouter({
 
       return updated;
     }),
+
+  /**
+   * Emergency account recovery — bind a NEW privyId onto an EXISTING
+   * user row. See `docs/design/emergency-recovery.md` §2c for the full
+   * threat model and operational procedure.
+   *
+   * When this is used: a user lost ALL automatic recovery paths (no
+   * Privy guardians configured, no wallet still in their possession),
+   * but can prove their identity off-chain via support channels. The
+   * support flow:
+   *
+   *   1. User signs up fresh — Privy assigns them a new userId, our
+   *      JIT path provisions a ghost row.
+   *   2. Support verifies identity proof, gets both the orphan row
+   *      UUID (old account) and the new Privy userId.
+   *   3. Admin calls this procedure with reason captured in writing.
+   *   4. Admin separately deletes the ghost row (`deleteUser` — TODO).
+   *
+   * Every call is logged to `admin_audit_log` with the admin's user
+   * id, target user id, before/after privyId, and free-text reason.
+   * The log is non-rotatable for forensics — this procedure is the
+   * single most dangerous one in the codebase, so the paper trail
+   * has to be permanent.
+   *
+   * Guard rails:
+   *   - The new Privy userId must not already be bound to ANY user
+   *     row (would orphan the ghost row and confuse future logins).
+   *   - The target user must not be soft-deleted — restoring a
+   *     deleted account is a separate procedure with different
+   *     ethics (the user chose to leave).
+   *   - The admin cannot relink themselves (prevents trivial
+   *     self-takeover via compromised admin session).
+   */
+  relinkUser: adminProcedure
+    .input(
+      z.object({
+        targetUserId: z.string().uuid(),
+        newPrivyId: z.string().min(8).max(200),
+        reason: z
+          .string()
+          .min(20, 'Reason must be at least 20 characters — capture the proof source.')
+          .max(2000),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (input.targetUserId === ctx.user.id) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'You cannot relink your own account.',
+        });
+      }
+
+      const target = await ctx.db.query.users.findFirst({
+        where: eq(users.id, input.targetUserId),
+        columns: { id: true, privyId: true, username: true, deletedAt: true },
+      });
+      if (!target) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Target user not found.' });
+      }
+      if (target.deletedAt) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message:
+            'Target account is soft-deleted. Use admin.restoreUser (not yet implemented) instead — relink + restore have different ethics.',
+        });
+      }
+
+      // The new privyId must be globally unique. If it already binds
+      // to another row, that row was likely the ghost — we don't try
+      // to merge them here, the admin must delete the ghost first.
+      const conflict = await ctx.db.query.users.findFirst({
+        where: eq(users.privyId, input.newPrivyId),
+        columns: { id: true, username: true },
+      });
+      if (conflict && conflict.id !== target.id) {
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: `New privyId is already bound to a different user (${conflict.username ?? conflict.id}). Delete that row first, then retry.`,
+        });
+      }
+
+      const oldPrivyId = target.privyId;
+
+      // Write audit log BEFORE the mutation. If the update fails, we
+      // still have a record of the attempt. If logging fails, we
+      // refuse to mutate — better to fail the action than leave an
+      // unloggable change in the DB.
+      await ctx.db.insert(adminAuditLog).values({
+        adminUserId: ctx.user.id,
+        targetUserId: target.id,
+        action: 'relink_user',
+        reason: input.reason,
+        details: {
+          before: { privyId: oldPrivyId },
+          after: { privyId: input.newPrivyId },
+          targetUsername: target.username,
+        },
+      });
+
+      await ctx.db
+        .update(users)
+        .set({ privyId: input.newPrivyId, updatedAt: new Date() })
+        .where(eq(users.id, target.id));
+
+      return {
+        success: true,
+        targetUserId: target.id,
+        oldPrivyId,
+        newPrivyId: input.newPrivyId,
+      };
+    }),
+
+  /**
+   * Read the admin audit log. Reads are admin-only — surfacing this
+   * to anyone else would itself be a privacy leak (admin identities,
+   * target user patterns).
+   *
+   * Default ordering: newest first, so the dashboard surfaces the
+   * most recent admin actions for review.
+   */
+  listAuditLog: adminProcedure
+    .input(
+      z
+        .object({
+          limit: z.number().int().min(1).max(100).default(50),
+          action: z.string().optional(),
+          targetUserId: z.string().uuid().optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ ctx, input }) => {
+      const limit = input?.limit ?? 50;
+      const conditions = [];
+      if (input?.action) conditions.push(eq(adminAuditLog.action, input.action));
+      if (input?.targetUserId) {
+        conditions.push(eq(adminAuditLog.targetUserId, input.targetUserId));
+      }
+      // `and(undefined)` is fine when conditions is empty — Drizzle
+      // collapses it to no-op. Belt-and-braces: explicit branch.
+      const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+      const rows = await ctx.db.query.adminAuditLog.findMany({
+        where,
+        orderBy: [desc(adminAuditLog.createdAt)],
+        limit,
+        with: {
+          admin: {
+            columns: { id: true, username: true, displayName: true },
+          },
+          target: {
+            columns: { id: true, username: true, displayName: true },
+          },
+        },
+      });
+      return rows;
+    }),
 });
+
+// `isNull` is imported above for future audit-log filters that need
+// to skip soft-deleted target users. Currently unused here but the
+// import keeps the next addition cheap and the lint output clean if
+// you uncomment such a filter. Suppressing lint here is intentional.
+void isNull;

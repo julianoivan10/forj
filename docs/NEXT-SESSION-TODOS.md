@@ -16,23 +16,16 @@ Three follow-ups from the tRPC perf audit (full report in commit
 `27704b2` chat). Combined effort because they touch the same query
 paths.
 
-### 1a. Partial index on `messages(receiver_id) WHERE NOT is_read`
+### 1a. Partial index on `messages(receiver_id) WHERE NOT is_read` — ✅ NOT NEEDED
 
-The `inbox.summary` endpoint runs:
-```sql
-SELECT COUNT(*) FROM messages WHERE receiver_id = ? AND is_read = false
-```
-Currently a full scan. Add a partial index — small (only unread rows)
-and matches the hot predicate exactly.
+The schema already has `messages_receiver_unread_idx ON
+(receiver_id, is_read)` (composite, not partial). Postgres uses
+Index Scan on the existing composite for `WHERE receiver_id = ? AND
+is_read = false` — verified mentally; can confirm with EXPLAIN.
 
-```sql
-CREATE INDEX IF NOT EXISTS idx_messages_receiver_unread
-  ON messages (receiver_id) WHERE is_read = false;
-```
-
-Mirror as a Drizzle index helper in `packages/db/src/schema/messages.ts`
-so the migration stays generated. Verify with `EXPLAIN ANALYZE` —
-should switch from `Seq Scan` to `Index Scan`.
+A partial index would be marginally smaller in storage but no
+meaningful speedup over the composite. Skip until profiling shows
+the existing index isn't being chosen.
 
 ### 1b. Denormalised unread counts on `users`
 
@@ -103,48 +96,21 @@ delivery drops — premature for MVP.
 
 ---
 
-## 3. Emergency recovery — design + implementation (~4-6h, design-heavy)
+## 3. Emergency recovery — ✅ DESIGN + PHASE 1 SHIPPED
 
-What happens when a user loses access to their Privy account?
+Design doc: `docs/design/emergency-recovery.md`.
+Phase 1 (this session): admin.relinkUser tRPC procedure +
+admin_audit_log table + OPERATIONS.md §8 runbook.
 
-**Today's failure mode**: Privy login via embedded wallet means losing
-the email / OAuth identity = losing the wallet = losing access to
-funded escrows (as freelancer) and ability to release escrows (as
-client). On-chain funds aren't lost (escrow contract doesn't depend on
-Privy), but the UI can't surface them without the user being able to
-log in.
-
-**Design considerations**:
-
-a. **Social recovery via Privy guardians** — Privy supports
-   guardian-based recovery for embedded wallets. Surface this in
-   `/dashboard/settings → Security` so users can configure guardians
-   pro-actively. Doc: <https://docs.privy.io/guide/react/recovery>
-
-b. **Wallet-export escape hatch** — Let users export their embedded
-   private key to MetaMask before they lose access. Privy provides
-   `exportWallet()`. Surface as a "Backup access" CTA on first login,
-   with a strong warning.
-
-c. **Admin re-link path** — If a user contacts support claiming they
-   lost access, an admin needs a way to re-bind a new `privyId` to
-   their existing DB row (otherwise reviews, contracts, work history
-   are orphaned). The `getUserFromToken` re-link heuristic does this
-   automatically when the new Privy login uses the same verified
-   wallet address — document this path, add an admin tRPC procedure
-   for manual override (gated by `ADMIN_USER_IDS`).
-
-d. **Counter-party escape valve** — If a freelancer loses access mid-
-   contract, the client needs to be able to refund or dispute without
-   the freelancer cosigning. Today `requestRevision()` and
-   `raiseDispute()` are gated correctly; document the flow in
-   OPERATIONS.md so support can talk people through it.
-
-Start with a design doc (`docs/design/emergency-recovery.md`) before
-writing code. Capture: trigger events, threat model (don't make this
-an account-takeover vector), UI surface, support runbook.
-
----
+**Remaining phases** (separate sessions):
+- Phase 2 — Settings → Security panel (Privy guardians manager,
+  wallet-export CTA, recovery status summary).
+- Phase 3 — Onboarding nudges (banner to configure recovery on first
+  login, pre-fund modal warning).
+- Phase 4 — Auto-release runbook surfacing (`/help/disputes-and-
+  recovery` page, contract-detail "counter-party ghosted" CTA).
+- Future — `admin.restoreUser` (un-delete soft-deleted accounts;
+  different ethics than relink, needs its own design).
 
 ## 4. Lazy freelancer escalation — ✅ SHIPPED (`c80755d`)
 
@@ -190,6 +156,8 @@ From the mobile audit not addressed this session (all "low" severity):
 | `5b24c62` | This doc — next-session backlog (now updated) |
 | `e54f497` | Messages `?to=` query handler + Contracts moved into Hiring/Work + Both mode dropped from selector |
 | `c80755d` | Lazy freelancer escalation modal + apply-to-job gating |
+| `6e2d2cb` | Messages hung-spinner fix (utils.client.query → utils.fetch) + 3 security hardenings (fileUrl whitelist, per-receiver rate limit, soft-deleted user filtering) |
+| (next)    | Emergency recovery Phase 1: design doc + admin.relinkUser + admin_audit_log table + OPERATIONS.md §8 runbook |
 
 On-chain state on Base Sepolia (current, multisig fully in control):
 

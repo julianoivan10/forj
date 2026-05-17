@@ -221,7 +221,134 @@ This buys you ~7 days of point-in-time recovery on the free tier.
 
 ---
 
-## 8. Things to never do
+## 8. Emergency account recovery
+
+> Read the design doc first: `docs/design/emergency-recovery.md`.
+> That covers the full threat model + the three layered paths. This
+> section is the hands-on runbook for the manual admin re-link path
+> when automatic recovery has already failed.
+
+### When to use this
+
+The user contacts support claiming they've lost access to their Forj
+account AND they can't recover via:
+
+- Privy's standard login (email magic-link, OAuth, etc.) — covered
+  by Privy itself, no Forj action needed.
+- A previously-linked wallet — `getUserFromToken`'s wallet-match
+  re-link will fire automatically on next login if they still have a
+  wallet whose address matches `users.walletAddress`.
+
+If both of those failed, this runbook applies.
+
+### Proof-of-identity bar (REVIEW BEFORE RUNNING)
+
+The single highest-risk operation on the platform. Tier-1 support
+does NOT have a button for this — an admin (someone in
+`ADMIN_USER_IDS`) reviews, decides, and runs it.
+
+Accept proof if at LEAST ONE of:
+
+1. **On-chain proof** — they signed a fresh message from any wallet
+   address that previously appeared in `users.walletAddress` for the
+   target account or in any contract row they're a party to. Verify
+   the signature off-chain (any wallet UI does this).
+2. **Email proof** — they forward an old Forj transactional email
+   (proposal received, contract funded, payment released) sent to the
+   email on file. Cross-check against Resend dashboard. They must
+   also pass an additional check from this list — email alone is too
+   spoofable.
+3. **KYC-equivalent** — government ID + selfie matching profile
+   photo, when (1) and (2) are impossible. Highest-friction path,
+   reserved for cases where on-chain history is meaningful (active
+   contracts, escrow balance).
+
+Reject if:
+
+- Only "I'm definitely the owner, trust me" — unsupported. No action.
+- Match on email alone — accept only as a second factor (see above).
+- Match on display name / bio / wallet substring — never sufficient.
+
+### Procedure
+
+```
+PRECONDITION
+  - You have target user's row UUID.            (from /admin/users or DB)
+  - User has logged in fresh via Privy, creating
+    a "ghost" row + new privyId.                (ask them to sign up)
+  - You have the new privyId from Privy
+    dashboard or the ghost row.
+
+STEP 1 — verify proof
+  See "Proof-of-identity bar" above. Write down which evidence
+  satisfied which bullet point. This goes in the audit log `reason`.
+
+STEP 2 — relink
+  Call admin.relinkUser via Drizzle Studio, tRPC playground, or a
+  one-shot script:
+
+    await api.admin.relinkUser.mutate({
+      targetUserId: "<old-uuid>",
+      newPrivyId:   "<new privy userId>",
+      reason:       "On-chain signature from 0xabc...123 matching
+                     contract 0xdef. Verified at https://etherscan.io/...
+                     Support ticket #1234.",
+    });
+
+  The procedure:
+    - refuses self-relink (admin === target)
+    - refuses if target is soft-deleted (use admin.restoreUser
+      instead — not yet implemented, escalate to engineering)
+    - refuses if newPrivyId is already bound elsewhere
+    - writes admin_audit_log row BEFORE mutating users.privyId
+
+STEP 3 — clean up the ghost row
+  The fresh signup created an extra row with the same privyId as
+  newPrivyId. After STEP 2 that privyId is bound to the OLD row,
+  so the ghost row is now orphaned (no longer accessible via Privy
+  auth). Hard-delete it via Drizzle Studio:
+
+    DELETE FROM users WHERE id = '<ghost-uuid>';
+
+  Future: a proper `admin.deleteUser` procedure should land so this
+  step also writes an audit log entry. For now, capture the ghost
+  UUID in the relink reason field.
+
+STEP 4 — user verification
+  Tell the user to log out + log back in via the same Privy flow
+  they used to create the ghost. They land on their recovered row
+  with full reputation + history intact.
+
+POSTCONDITION
+  - users row count is unchanged (target updated, ghost deleted).
+  - admin_audit_log has a relink_user row with details.before /
+    details.after capturing the old + new privyId.
+  - User confirms they see their old contracts / reviews / etc.
+```
+
+### Reading the audit log
+
+```sql
+SELECT
+  l.created_at,
+  admin.username  AS admin,
+  target.username AS target,
+  l.action,
+  l.reason,
+  l.details
+FROM admin_audit_log l
+LEFT JOIN users admin  ON admin.id  = l.admin_user_id
+LEFT JOIN users target ON target.id = l.target_user_id
+ORDER BY l.created_at DESC
+LIMIT 50;
+```
+
+Surface in-app via `api.admin.listAuditLog` — only callable by users
+in `ADMIN_USER_IDS`.
+
+---
+
+## 9. Things to never do
 
 - **Never** force-push to `main`.
 - **Never** commit `.env` (it's in `.gitignore`; verify with `git status -- .env`).
