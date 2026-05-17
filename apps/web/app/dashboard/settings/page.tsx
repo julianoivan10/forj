@@ -17,6 +17,7 @@ import {
   X,
   Link as LinkIcon,
   Globe,
+  MapPin,
   CheckCircle2,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
@@ -190,8 +191,13 @@ function ProfileTab({
   };
 
   return (
-    <div className="space-y-6">
-      {/* Avatar uploader + identity */}
+    // Tighter outer rhythm — was space-y-6 which left ~24px of dead
+    // space between every card. space-y-5 keeps them readable as
+    // separate cards without feeling disconnected.
+    <div className="space-y-5">
+      {/* Avatar uploader + identity summary. Read-only role badge —
+          this is the at-a-glance "who am I logged in as" header; the
+          editable display name lives inside the About-you card below. */}
       <div className="flex flex-col gap-5 rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-background-secondary)] p-5 sm:flex-row sm:items-center sm:justify-between">
         <AvatarUpload
           name={user.displayName ?? user.username ?? 'You'}
@@ -226,7 +232,14 @@ function ProfileTab({
           />
         </div>
         <div>
-          <Label htmlFor="bio">Bio</Label>
+          <div className="flex items-baseline justify-between">
+            <Label htmlFor="bio">Bio</Label>
+            {/* Counter inline with the label so it doesn't dangle below
+                a full-width textarea — keeps the visual weight balanced. */}
+            <span className="text-[10px] tabular-nums text-[var(--color-text-tertiary)]">
+              {bio.length}/500
+            </span>
+          </div>
           <Textarea
             id="bio"
             value={bio}
@@ -235,21 +248,22 @@ function ProfileTab({
             className="mt-1.5"
             placeholder="One or two lines about your work, focus, and what you bring to a project."
           />
-          <p className="mt-1 text-right text-xs text-[var(--color-text-tertiary)]">
-            {bio.length}/500
-          </p>
         </div>
       </ProfileSection>
 
-      {/* Freelancer-side details — skills + rate + portfolio. Hidden
-          label-wise for client-only users but the fields still render
-          (the existing post-escalation row can have data here). */}
+      {/* Freelancer-side details — skills + rate + portfolio. Same
+          form regardless of mode; client-only users just leave them
+          empty (or filled them in via lazy escalation when applying). */}
       <ProfileSection
         title="Freelancer details"
         description="Shown when clients evaluate you for a job or service. Required to apply to a job."
       >
         <div>
           <Label htmlFor="skills">Skills</Label>
+          {/* Skills entry row — input takes the full width minus the
+              compact Add button. Add button is `size="sm"` so it
+              doesn't overpower a long-placeholder input. Enter/comma
+              also trigger add (faster than reaching for the button). */}
           <div className="mt-1.5 flex gap-2">
             <Input
               id="skills"
@@ -261,15 +275,18 @@ function ProfileTab({
                   addSkill();
                 }
               }}
-              placeholder="e.g. React, Solidity, Brand identity…"
+              placeholder="e.g. React, Solidity, Brand identity… (press Enter to add)"
               maxLength={40}
+              className="flex-1"
             />
             <Button
               type="button"
               variant="secondary"
+              size="sm"
               onClick={addSkill}
               disabled={!skillInput.trim() || skills.length >= 20}
               leftIcon={<Plus />}
+              className="shrink-0 self-stretch"
             >
               Add
             </Button>
@@ -302,15 +319,27 @@ function ProfileTab({
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <Label htmlFor="hourlyRate">Hourly rate (USDC)</Label>
-            <Input
-              id="hourlyRate"
-              type="number"
-              inputMode="decimal"
-              value={hourlyRate}
-              onChange={(e) => setHourlyRate(e.target.value)}
-              className="mt-1.5"
-              placeholder="50"
-            />
+            {/* `$` prefix matches the escalation modal so a user
+                going Apply-to-job → lazy-escalation → later-edit-in-
+                settings sees the same affordance. Currency unit is
+                in the label since USDC pegs to USD. */}
+            <div className="relative mt-1.5">
+              <span
+                aria-hidden
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--color-text-tertiary)]"
+              >
+                $
+              </span>
+              <Input
+                id="hourlyRate"
+                type="number"
+                inputMode="decimal"
+                value={hourlyRate}
+                onChange={(e) => setHourlyRate(e.target.value)}
+                placeholder="50"
+                className="pl-7"
+              />
+            </div>
           </div>
           <div>
             <Label htmlFor="portfolio">Portfolio URL</Label>
@@ -332,9 +361,9 @@ function ProfileTab({
         </div>
       </ProfileSection>
 
-      {/* Location — country + timezone. Clients use these to match
-          time-zone overlap; freelancers use them for tax / payment
-          jurisdiction context. */}
+      {/* Location — country + timezone. Both icon-prefixed so the
+          card reads as a coherent pair instead of one bare + one
+          decorated. */}
       <ProfileSection
         title="Location"
         description="Helps match collaborators who share working hours."
@@ -342,13 +371,19 @@ function ProfileTab({
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <Label htmlFor="country">Country</Label>
-            <Input
-              id="country"
-              value={country}
-              onChange={(e) => setCountry(e.target.value.slice(0, 80))}
-              className="mt-1.5"
-              placeholder="e.g. Indonesia"
-            />
+            <div className="relative mt-1.5">
+              <MapPin
+                aria-hidden
+                className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--color-text-tertiary)]"
+              />
+              <Input
+                id="country"
+                value={country}
+                onChange={(e) => setCountry(e.target.value.slice(0, 80))}
+                placeholder="e.g. Indonesia"
+                className="pl-8"
+              />
+            </div>
           </div>
           <div>
             <Label htmlFor="timezone">Timezone</Label>

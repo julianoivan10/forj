@@ -4,9 +4,10 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { ArrowLeft, Plus, Sparkles, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Hammer, Plus, Sparkles, Trash2, X } from 'lucide-react';
 import { Button, Input, Label, Skeleton, Textarea } from '@/components/ui';
 import { AuthGate } from '@/components/auth/auth-gate';
+import { useAuth } from '@/hooks/use-auth';
 import { api } from '@/lib/trpc/client';
 import { JOB_CATEGORIES } from '@/lib/constants';
 
@@ -42,6 +43,13 @@ export default function NewServicePage() {
 
 function NewServiceInner() {
   const router = useRouter();
+  const { user } = useAuth();
+  // Lazy escalation soft notice: a client-mode user landing here will
+  // become a freelancer (role flips to 'both') on successful publish.
+  // The form already collects skills/tiers inline so we don't gate
+  // with a modal — just a header banner so the role change isn't a
+  // surprise. Server-side promotion lives in service.create.
+  const willEscalateRole = user?.role === 'client';
   const [title, setTitle] = useState('');
   const [tagline, setTagline] = useState('');
   const [description, setDescription] = useState('');
@@ -151,6 +159,22 @@ function NewServiceInner() {
           clients buy without the proposal round-trip.
         </p>
       </header>
+
+      {/* Lazy escalation notice — only shown to client-mode users so
+          they're not surprised when their sidebar grows a "Work"
+          group after publishing. Non-blocking; just sets expectation. */}
+      {willEscalateRole && (
+        <div className="mt-5 flex items-start gap-3 rounded-[var(--radius-md)] border border-[var(--color-border-brand)] bg-[var(--color-glow-brand)] p-4">
+          <Hammer className="mt-0.5 size-4 shrink-0 text-[var(--color-brand-primary)]" />
+          <p className="text-sm text-[var(--color-text-secondary)]">
+            <span className="font-semibold text-[var(--color-text-primary)]">
+              Publishing a service makes you available as a freelancer.
+            </span>{' '}
+            Your dashboard will show both Hiring and Work sections from
+            now on — flip the mode switcher anytime to focus on one.
+          </p>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-8">
         {/* Section: Basics */}

@@ -315,6 +315,155 @@ export const adminRouter = createTRPCRouter({
       });
       return rows;
     }),
+
+  /**
+   * Restore a soft-deleted account. Different ethics than relinkUser:
+   * the user explicitly chose to leave (they signed a typed-username
+   * confirmation, we anonymised their row), so reversing that is a
+   * separate procedure with a higher proof bar.
+   *
+   * When this is used:
+   *   - User regrets deletion within hours/days of the act AND can
+   *     prove identity (same proof bar as relinkUser, see
+   *     docs/design/emergency-recovery.md §2c).
+   *   - Legal request (data-protection authority compels reinstatement).
+   *   - Mistaken deletion (account share-key compromised the moment
+   *     before; admin needs to undo before damage spreads).
+   *
+   * What this does NOT do:
+   *   - Restore PII that was anonymised. We zeroed email / displayName /
+   *     bio / avatar / skills at delete time and didn't keep a copy.
+   *     User has to re-enter that data on first login post-restore.
+   *   - Re-link to a new privyId. If the user can sign in to their
+   *     original Privy account, this is the right procedure. If not,
+   *     use relinkUser instead (which targets the restored row).
+   *
+   * What it DOES restore:
+   *   - The `deletedAt` is cleared, so the row is visible to login
+   *     flows again.
+   *   - The tombstoned `privyId` (format `deleted:<orig>:<timestamp>`)
+   *     is parsed and the original privyId re-bound. If parsing
+   *     fails (legacy / hand-mutated row), the admin must pass an
+   *     explicit `newPrivyId` to overwrite.
+   *
+   * Always writes an audit row before mutating. Reason field must
+   * include the proof source.
+   */
+  restoreUser: adminProcedure
+    .input(
+      z.object({
+        targetUserId: z.string().uuid(),
+        reason: z
+          .string()
+          .min(20, 'Reason must be at least 20 characters — capture the proof source.')
+          .max(2000),
+        // Optional override when the tombstoned privyId can't be
+        // parsed back to its original value. Required if the
+        // `deleted:` prefix is missing (very old soft-deletes).
+        newPrivyId: z.string().min(8).max(200).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (input.targetUserId === ctx.user.id) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'You cannot restore your own account.',
+        });
+      }
+
+      const target = await ctx.db.query.users.findFirst({
+        where: eq(users.id, input.targetUserId),
+        columns: {
+          id: true,
+          privyId: true,
+          username: true,
+          deletedAt: true,
+        },
+      });
+      if (!target) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Target user not found.' });
+      }
+      if (!target.deletedAt) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Target account is not soft-deleted — nothing to restore.',
+        });
+      }
+
+      // Parse the original privyId out of the tombstone format
+      // `deleted:<originalPrivyId>:<unixMillis>`. If the format
+      // doesn't match (manual mutation, legacy row), require an
+      // explicit override from the admin.
+      let restoredPrivyId: string | null = null;
+      const tombMatch = target.privyId.match(/^deleted:(.+):(\d+)$/);
+      if (tombMatch) {
+        restoredPrivyId = tombMatch[1] ?? null;
+      }
+      if (input.newPrivyId) {
+        restoredPrivyId = input.newPrivyId;
+      }
+      if (!restoredPrivyId) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message:
+            'Could not parse the original privyId from the tombstone. Pass `newPrivyId` explicitly with the user\'s current Privy session id.',
+        });
+      }
+
+      // Conflict check: the restored privyId must not collide with
+      // an existing live row (which would create two rows the user
+      // could log into under the same identity).
+      const conflict = await ctx.db.query.users.findFirst({
+        where: eq(users.privyId, restoredPrivyId),
+        columns: { id: true, username: true },
+      });
+      if (conflict && conflict.id !== target.id) {
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: `Restored privyId is already bound to a different live user (${conflict.username ?? conflict.id}). Resolve the conflict first.`,
+        });
+      }
+
+      // Audit log first — see relinkUser for the rationale.
+      await ctx.db.insert(adminAuditLog).values({
+        adminUserId: ctx.user.id,
+        targetUserId: target.id,
+        action: 'restore_user',
+        reason: input.reason,
+        details: {
+          before: {
+            privyId: target.privyId,
+            deletedAt: target.deletedAt,
+          },
+          after: { privyId: restoredPrivyId, deletedAt: null },
+          // Whether we used the parsed value or admin's override —
+          // useful for forensics if the format changes.
+          source: input.newPrivyId ? 'admin-override' : 'tombstone-parse',
+        },
+      });
+
+      // Restore: clear deletedAt, re-bind privyId. PII stays
+      // anonymised (we didn't keep a copy) — user re-enters on next
+      // login. The same audit row captures the before-state so support
+      // can help them remember what their old profile said.
+      await ctx.db
+        .update(users)
+        .set({
+          privyId: restoredPrivyId,
+          deletedAt: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, target.id));
+
+      return {
+        success: true,
+        targetUserId: target.id,
+        restoredPrivyId,
+        // Reminder for the calling support flow.
+        piiNote:
+          'PII was anonymised at delete time and is not recoverable. User must re-enter profile data on first login.',
+      };
+    }),
 });
 
 // `isNull` is imported above for future audit-log filters that need

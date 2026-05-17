@@ -511,10 +511,14 @@ export default function ConversationThreadPage() {
         )}
       </div>
 
-      {/* Composer */}
+      {/* Composer. Padding shrinks on mobile so the textarea sits
+          closer to the on-screen keyboard — gives a usable composer
+          even when iOS pushes the viewport up by ~40%. min-h matches
+          the standard 48px touch target so a one-line draft is
+          comfortable to tap. */}
       <form
         onSubmit={handleSend}
-        className="flex items-end gap-2 border-t border-[var(--color-border-default)] pt-4"
+        className="flex items-end gap-2 border-t border-[var(--color-border-default)] pt-2 sm:pt-4"
       >
         <textarea
           value={draft}
@@ -530,7 +534,7 @@ export default function ConversationThreadPage() {
           maxLength={5000}
           disabled={!other}
           className={cn(
-            'min-h-[44px] max-h-[160px] flex-1 resize-none rounded-[var(--radius-md)]',
+            'min-h-[48px] max-h-[160px] flex-1 resize-none rounded-[var(--radius-md)]',
             'bg-[var(--color-background-elevated)] border border-[var(--color-border-default)]',
             'px-3 py-2.5 text-sm text-[var(--color-text-primary)]',
             'placeholder:text-[var(--color-text-tertiary)]',

@@ -125,15 +125,15 @@ admin_audit_log table + OPERATIONS.md §8 runbook.
 - Future — `admin.restoreUser` (un-delete soft-deleted accounts;
   different ethics than relink, needs its own design).
 
-## 4. Lazy freelancer escalation — ✅ SHIPPED (`c80755d`)
+## 4. Lazy freelancer escalation — ✅ FULLY SHIPPED
 
-Apply-to-job flow now gates on `useHasFreelancerProfile()`. Missing
-skills/rate → `EscalationModal` collects them, promotes role, then
-auto-opens the proposal form.
-
-**Remaining**: wire `intent="publish-service"` on
-`/dashboard/services/new` if/when that page is streamlined (currently
-it collects skills inline so doesn't need the gate yet).
+- Apply-to-job (`c80755d`): `EscalationModal` collects skills/rate
+  on-demand before opening the proposal form.
+- Publish-service (latest): server-side role promotion in
+  `service.create` (`client` → `both`) + soft notice banner on
+  `/dashboard/services/new` so the role change isn't a surprise. No
+  modal needed because the service form already collects all the
+  freelancer fields inline.
 
 ---
 

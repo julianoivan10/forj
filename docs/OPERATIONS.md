@@ -298,7 +298,7 @@ STEP 2 — relink
   The procedure:
     - refuses self-relink (admin === target)
     - refuses if target is soft-deleted (use admin.restoreUser
-      instead — not yet implemented, escalate to engineering)
+      instead — see "Restoring a soft-deleted account" below)
     - refuses if newPrivyId is already bound elsewhere
     - writes admin_audit_log row BEFORE mutating users.privyId
 
@@ -324,6 +324,44 @@ POSTCONDITION
   - admin_audit_log has a relink_user row with details.before /
     details.after capturing the old + new privyId.
   - User confirms they see their old contracts / reviews / etc.
+```
+
+### Restoring a soft-deleted account
+
+Mirror of relinkUser, but for users who deleted their account and
+want it back. Same proof bar (the user explicitly chose to leave —
+reversing that needs as much identity verification as the original
+delete).
+
+```
+PRECONDITION
+  - Target row's `deletedAt` is set (was soft-deleted).
+  - User can prove identity (same bar as relink — see above).
+
+STEP 1 — verify proof
+  Capture the proof source in writing for the audit log.
+
+STEP 2 — restore
+  await api.admin.restoreUser.mutate({
+    targetUserId: "<uuid>",
+    reason:       "Email proof + signed message from wallet
+                   0xabc...123. Ticket #5678.",
+    // newPrivyId is optional — the procedure parses it out of the
+    // tombstone format `deleted:<orig>:<timestamp>`. Pass only if
+    // parsing fails (legacy soft-delete without the prefix) OR if
+    // the user has a fresh Privy session you want to bind instead.
+  });
+
+STEP 3 — user re-enters PII
+  Email, displayName, bio, avatar, skills were zeroed at delete time.
+  Tell the user they'll need to fill those in again on next login.
+  History (contracts, reviews, on-chain reputation) is intact.
+
+POSTCONDITION
+  - users.deletedAt is null.
+  - users.privyId is restored to the parsed-or-supplied value.
+  - admin_audit_log has a restore_user row with before/after snapshot.
+  - User confirms they can sign in + see their old work history.
 ```
 
 ### Reading the audit log

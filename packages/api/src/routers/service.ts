@@ -12,6 +12,7 @@ import {
   proposals,
   services,
   sql,
+  users,
   type Service,
   type ServiceTier,
 } from '@forj/db';
@@ -271,6 +272,23 @@ export const serviceRouter = createTRPCRouter({
           priceFrom: priceFrom.toString(),
         })
         .returning();
+
+      // Lazy freelancer escalation (publish-service variant). Mirrors
+      // the apply-to-job EscalationModal flow but happens server-side
+      // because the service form already collects all the freelancer
+      // fields inline (skills, tiers) — no need for a blocking modal.
+      // Promote 'client' → 'both' so their sidebar surfaces the
+      // freelancer-side nav from now on. Other role values left alone:
+      //   - 'freelancer' / 'both' → already correct
+      //   - null (shouldn't happen for an authed user) → no harm
+      // See docs/design/role-and-mode.md §5.
+      if (ctx.user.role === 'client') {
+        await ctx.db
+          .update(users)
+          .set({ role: 'both', updatedAt: new Date() })
+          .where(eq(users.id, ctx.user.id));
+      }
+
       return created;
     }),
 
