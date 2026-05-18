@@ -96,6 +96,7 @@ A few have to change for production — flagged with **⚠️ change** below.
 
 | Var | Purpose |
 |---|---|
+| `ADMIN_HOSTNAME` | Hostname for the admin surface (e.g. `admin.forj.app`). When set, `/admin/*` only resolves on this host; the public host returns 404 for those paths. **See "Admin on a subdomain" section below for full setup.** Skip for demo on `.vercel.app` (no admin subdomain available there). |
 | `PINATA_API_KEY`, `PINATA_SECRET_KEY`, `NEXT_PUBLIC_PINATA_GATEWAY` | IPFS pinning (portfolio archives, on-chain reputation snapshots). Skip for demo. |
 | `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_AUTH_TOKEN` | Error tracking. Skip for demo. |
 | `PLATFORM_FEE_RECIPIENT` | Used by deploy scripts only, NOT by the running web app. Skip on Vercel. |
@@ -195,6 +196,74 @@ UploadThing uses CORS, not webhooks. As long as
    new domain. Redeploy.
 
 Skip this for a pure demo — the `.vercel.app` subdomain is fine.
+
+---
+
+## 6b · Admin on a subdomain (recommended once you have a custom domain)
+
+Once `forj.app` (or whatever) points at your Vercel project, the
+recommended setup is to put the admin surface on `admin.forj.app`.
+The web app's `middleware.ts` already supports this — you just flip
+it on via env var.
+
+### Why subdomain (vs `/admin/*` on the main domain)
+
+- Removes the admin chrome from the public-domain bundle pipeline.
+  A drive-by scanner hitting `forj.app/admin` gets a clean 404
+  instead of a "this exists but you can't see it" 401.
+- Lets you add a separate auth layer in front of the subdomain
+  (Cloudflare Access, Vercel password protection) without affecting
+  user-facing traffic.
+- Visually + operationally clearer for the team — context-switching
+  between "I'm logged into the user dashboard" and "I'm logged into
+  admin" is unambiguous when the URL itself differs.
+
+The `/admin/*` path stays in the codebase — middleware just gates
+WHICH HOST can serve those paths.
+
+### Setup steps
+
+1. **Add the subdomain in Vercel.** Project → Settings → Domains →
+   Add `admin.forj.app`. Vercel walks you through the DNS record
+   (CNAME pointing at `cname.vercel-dns.com`). Once DNS propagates,
+   the subdomain is bound to the same project as `forj.app`.
+
+2. **Set `ADMIN_HOSTNAME` env var to that subdomain.** Important:
+   set it ONLY for the Production environment, not Preview. (Preview
+   deploys get unique-per-branch hostnames; if you set ADMIN_HOSTNAME
+   on Preview, /admin would 404 on every preview URL.)
+   ```
+   ADMIN_HOSTNAME=admin.forj.app    # Production only
+   ```
+   Vercel env var UI: when adding a var, untick Preview + Development
+   and only tick Production.
+
+3. **Redeploy** (env-only changes don't auto-trigger). Project →
+   Deployments → ⋯ → Redeploy.
+
+4. **Test**:
+   - `https://admin.forj.app/` → redirects to admin hub.
+   - `https://admin.forj.app/users` → admin recovery page.
+   - `https://forj.app/admin` → Next.js not-found page (NOT a
+     redirect — that would leak the subdomain to scanners).
+
+5. **(Optional but recommended) Add an extra auth layer.** Cloudflare
+   Access lets you require Google SSO + Workspace membership before
+   any request even hits Vercel. Setup: Cloudflare zone → Access →
+   Applications → Add → Self-hosted → hostname `admin.forj.app` →
+   pick your identity provider. The `ADMIN_USER_IDS` server-side
+   gate is then your second factor.
+
+### What about Vercel Preview deploys?
+
+Preview deployments get unique URLs per commit (e.g.
+`forj-abc123.vercel.app`). They don't have an admin subdomain.
+With `ADMIN_HOSTNAME` unset for Preview, the middleware falls back
+to path mode automatically — `forj-abc123.vercel.app/admin` works
+for testing.
+
+This is the right default. Don't try to make admin subdomain work
+for previews; the friction isn't worth it.
 
 ---
 

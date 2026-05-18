@@ -21,6 +21,14 @@ export const env = createEnv({
      */
     ADMIN_USER_IDS: z.string().optional(),
     /**
+     * Hostname that serves the admin surface (e.g. `admin.forj.app`).
+     * When set, `/admin/*` is reachable ONLY on this host — all other
+     * hosts get a not-found page for those paths. See `middleware.ts`.
+     * Leave unset for local dev + demo deploys without a dedicated
+     * admin subdomain.
+     */
+    ADMIN_HOSTNAME: z.string().optional(),
+    /**
      * Wallet address that receives platform fees (the `feeRecipient` arg
      * passed at WorkChainEscrow constructor time). Stored here so the
      * deploy script can pick it up; not used at request time by the API.
@@ -63,6 +71,7 @@ export const env = createEnv({
     UPLOADTHING_SECRET: process.env.UPLOADTHING_SECRET,
     UPLOADTHING_APP_ID: process.env.UPLOADTHING_APP_ID,
     ADMIN_USER_IDS: process.env.ADMIN_USER_IDS,
+    ADMIN_HOSTNAME: process.env.ADMIN_HOSTNAME,
     PLATFORM_FEE_RECIPIENT: process.env.PLATFORM_FEE_RECIPIENT,
     DEPLOYER_PRIVATE_KEY: process.env.DEPLOYER_PRIVATE_KEY,
     BASESCAN_API_KEY: process.env.BASESCAN_API_KEY,

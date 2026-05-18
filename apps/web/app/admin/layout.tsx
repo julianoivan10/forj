@@ -50,6 +50,21 @@ const NAV = [
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  // "Back to user dashboard" link target.
+  //
+  // When admin lives on a subdomain (`admin.forj.app`) the user
+  // dashboard lives on a different origin (`forj.app`), so a relative
+  // `/dashboard` href would 404 against the admin host. Build the link
+  // from `NEXT_PUBLIC_APP_URL` so the URL always points back at the
+  // public app regardless of which host renders the admin page.
+  //
+  // For path-mode (no admin subdomain), `NEXT_PUBLIC_APP_URL` and the
+  // current origin are the same, so the absolute URL still works — it
+  // just does an extra-cheap same-origin hop instead of a relative
+  // path. Acceptable tradeoff for the single-component-handles-both-modes
+  // simplicity.
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? '';
+  const dashboardHref = appUrl ? `${appUrl}/dashboard` : '/dashboard';
   return (
     <div className="min-h-screen bg-[var(--color-background-primary)]">
       {/* Red banner — visually distinct from the user dashboard's
@@ -63,12 +78,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               Admin — internal use only
             </p>
           </div>
-          <Link
-            href="/dashboard"
+          <a
+            href={dashboardHref}
             className="inline-flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
           >
             <ArrowLeft className="size-3.5" /> Back to user dashboard
-          </Link>
+          </a>
         </div>
       </div>
 

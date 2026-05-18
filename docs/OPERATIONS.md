@@ -225,9 +225,17 @@ This buys you ~7 days of point-in-time recovery on the free tier.
 
 > Read the design doc first: `docs/design/emergency-recovery.md`.
 >
-> **Where to do this**: every admin tool lives under `/admin/*` on
-> the main domain (not a separate subdomain yet). The user-facing
-> nav doesn't link there — admins type the URL directly:
+> **Where to do this**: admin tools live under `/admin/*`. Operating
+> mode depends on `ADMIN_HOSTNAME` env:
+>
+>   - **Default (env unset)** — `/admin/*` reachable on whatever host
+>     the request lands on. Local dev + demo deploys use this.
+>   - **Subdomain mode (env set to e.g. `admin.forj.app`)** — `/admin/*`
+>     reachable ONLY on that host. Public host returns Next.js
+>     not-found for those paths. See `docs/DEPLOY-VERCEL.md` §6b for
+>     setup.
+>
+> URL set (same paths regardless of mode):
 >
 >   - `/admin` — hub with queue counts + recent activity
 >   - `/admin/disputes` — open disputes queue
@@ -238,9 +246,10 @@ This buys you ~7 days of point-in-time recovery on the free tier.
 > UUIDs). The `adminProcedure` tRPC middleware checks every call;
 > non-admin browsers can hit the URL but every query returns 401, so
 > the page renders empty. Belt-and-braces with a `noindex` meta +
-> `robots.txt` disallow on `/admin/*`.
+> `robots.txt` disallow on `/admin/*` + the `middleware.ts` host
+> filter (when `ADMIN_HOSTNAME` is set).
 >
-> Production hardening when ready: front the `/admin/*` path with
+> Production hardening when ready: front the admin subdomain with
 > Cloudflare Access or Vercel password protection so the URL needs
 > a second factor BEFORE the tRPC layer even sees the request.
 > That covers the full threat model + the three layered paths. This
