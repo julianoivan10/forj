@@ -242,26 +242,29 @@ export const adminRouter = createTRPCRouter({
 
       const oldPrivyId = target.privyId;
 
-      // Write audit log BEFORE the mutation. If the update fails, we
-      // still have a record of the attempt. If logging fails, we
-      // refuse to mutate — better to fail the action than leave an
-      // unloggable change in the DB.
-      await ctx.db.insert(adminAuditLog).values({
-        adminUserId: ctx.user.id,
-        targetUserId: target.id,
-        action: 'relink_user',
-        reason: input.reason,
-        details: {
-          before: { privyId: oldPrivyId },
-          after: { privyId: input.newPrivyId },
-          targetUsername: target.username,
-        },
+      // Audit log + privyId update wrapped in one transaction. If
+      // either fails, both roll back — we never want an "action
+      // recorded but didn't happen" or "action happened but not
+      // logged" state. With neon-serverless this is real pg-level
+      // atomicity (previously was a best-effort write order on
+      // neon-http, which the audit flagged as MEDIUM).
+      await ctx.db.transaction(async (tx) => {
+        await tx.insert(adminAuditLog).values({
+          adminUserId: ctx.user.id,
+          targetUserId: target.id,
+          action: 'relink_user',
+          reason: input.reason,
+          details: {
+            before: { privyId: oldPrivyId },
+            after: { privyId: input.newPrivyId },
+            targetUsername: target.username,
+          },
+        });
+        await tx
+          .update(users)
+          .set({ privyId: input.newPrivyId, updatedAt: new Date() })
+          .where(eq(users.id, target.id));
       });
-
-      await ctx.db
-        .update(users)
-        .set({ privyId: input.newPrivyId, updatedAt: new Date() })
-        .where(eq(users.id, target.id));
 
       return {
         success: true,
@@ -424,36 +427,38 @@ export const adminRouter = createTRPCRouter({
         });
       }
 
-      // Audit log first — see relinkUser for the rationale.
-      await ctx.db.insert(adminAuditLog).values({
-        adminUserId: ctx.user.id,
-        targetUserId: target.id,
-        action: 'restore_user',
-        reason: input.reason,
-        details: {
-          before: {
-            privyId: target.privyId,
-            deletedAt: target.deletedAt,
+      // Audit log + restore wrapped in one transaction (same
+      // atomicity guarantee as relinkUser — both happen or neither).
+      // PII stays anonymised regardless; we didn't keep a copy at
+      // delete time, so first-login post-restore the user re-enters
+      // their profile. The audit row's `before` snapshot lets
+      // support recall what the old profile said.
+      await ctx.db.transaction(async (tx) => {
+        await tx.insert(adminAuditLog).values({
+          adminUserId: ctx.user.id,
+          targetUserId: target.id,
+          action: 'restore_user',
+          reason: input.reason,
+          details: {
+            before: {
+              privyId: target.privyId,
+              deletedAt: target.deletedAt,
+            },
+            after: { privyId: restoredPrivyId, deletedAt: null },
+            // Whether we used the parsed value or admin's override —
+            // useful for forensics if the format changes.
+            source: input.newPrivyId ? 'admin-override' : 'tombstone-parse',
           },
-          after: { privyId: restoredPrivyId, deletedAt: null },
-          // Whether we used the parsed value or admin's override —
-          // useful for forensics if the format changes.
-          source: input.newPrivyId ? 'admin-override' : 'tombstone-parse',
-        },
+        });
+        await tx
+          .update(users)
+          .set({
+            privyId: restoredPrivyId,
+            deletedAt: null,
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, target.id));
       });
-
-      // Restore: clear deletedAt, re-bind privyId. PII stays
-      // anonymised (we didn't keep a copy) — user re-enters on next
-      // login. The same audit row captures the before-state so support
-      // can help them remember what their old profile said.
-      await ctx.db
-        .update(users)
-        .set({
-          privyId: restoredPrivyId,
-          deletedAt: null,
-          updatedAt: new Date(),
-        })
-        .where(eq(users.id, target.id));
 
       return {
         success: true,

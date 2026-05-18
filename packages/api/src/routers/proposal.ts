@@ -266,83 +266,100 @@ export const proposalRouter = createTRPCRouter({
           }))
         : null;
 
-      // 1. Lock the job FIRST via a conditional UPDATE. If two clients
-      //    click "accept" on different proposals at almost the same moment,
-      //    only one UPDATE flips the job from 'open' → 'in_progress' — the
-      //    other returns zero rows and we abort. This prevents the
-      //    "two contracts created on one job" race.
+      // Steps 1-4 run inside a single Postgres transaction. Now that
+      // we're on `drizzle-orm/neon-serverless` (WebSocket pool, full
+      // pg protocol), this is real atomicity — either every step
+      // commits or none does. Previously, on the HTTP driver, we had
+      // to fake atomicity with a "best-effort rollback on failure"
+      // pattern that could leave the job in_progress with no
+      // accepted proposal if the rollback UPDATE itself failed.
       //
-      //    We do this BEFORE inserting the contract so the contract row
-      //    is only created once we've definitively won the race.
-      const lockedJobs = await ctx.db
-        .update(jobs)
-        .set({ status: 'in_progress' })
-        .where(and(eq(jobs.id, proposal.jobId), eq(jobs.status, 'open')))
-        .returning({ id: jobs.id });
-      if (lockedJobs.length === 0) {
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: 'Another proposal was just accepted on this job. Refresh to see the current state.',
-        });
-      }
-
-      // 2. Same optimistic lock on the proposal itself — if it was
-      //    accepted/withdrawn/rejected in between our findFirst and now,
-      //    bail. (Defence in depth alongside the job lock above.)
-      const acceptedProposals = await ctx.db
-        .update(proposals)
-        .set({ status: 'accepted' })
-        .where(and(eq(proposals.id, input.id), eq(proposals.status, 'pending')))
-        .returning({ id: proposals.id });
-      if (acceptedProposals.length === 0) {
-        // Roll back the job lock so the page state stays sensible. The
-        // window for this rollback to fail is microseconds; if it does
-        // the job is left in_progress with no proposal, which the UI
-        // surfaces as a malformed state. Acceptable for an MVP.
-        await ctx.db
+      // The transaction wraps:
+      //   1. Job lock (open → in_progress)
+      //   2. Proposal status (pending → accepted)
+      //   3. Contract row insert
+      //   4. Reject every other pending proposal on this job
+      //
+      // Notifications stay OUTSIDE the transaction — they're best-
+      // effort and shouldn't be able to roll back a successful
+      // contract creation if Resend / Inngest hiccup.
+      const contract = await ctx.db.transaction(async (tx) => {
+        // 1. Lock the job FIRST via a conditional UPDATE. If two
+        //    clients click "accept" on different proposals at almost
+        //    the same moment, only one UPDATE flips the job from
+        //    'open' → 'in_progress'; the other returns zero rows
+        //    and we throw (which auto-rolls the tx).
+        const lockedJobs = await tx
           .update(jobs)
-          .set({ status: 'open' })
-          .where(eq(jobs.id, proposal.jobId));
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: 'This proposal was just modified by someone else. Refresh and try again.',
-        });
-      }
+          .set({ status: 'in_progress' })
+          .where(and(eq(jobs.id, proposal.jobId), eq(jobs.status, 'open')))
+          .returning({ id: jobs.id });
+        if (lockedJobs.length === 0) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Another proposal was just accepted on this job. Refresh to see the current state.',
+          });
+        }
 
-      // 3. Create the unfunded contract — now safe.
-      const [contract] = await ctx.db
-        .insert(contracts)
-        .values({
-          jobId: proposal.jobId,
-          clientId: proposal.job.clientId,
-          freelancerId: proposal.freelancerId,
-          proposalId: proposal.id,
-          title: proposal.job.title,
-          totalAmount: total.toString(),
-          platformFee: platformFee.toString(),
-          freelancerAmount: freelancerAmount.toString(),
-          paymentMethod: 'crypto',
-          deliveryDeadline,
-          milestones: initialMilestones,
-          currentMilestone: 0,
-        })
-        .returning();
+        // 2. Same optimistic lock on the proposal itself — if it
+        //    was accepted/withdrawn/rejected in between our findFirst
+        //    and now, throw + roll back.
+        const acceptedProposals = await tx
+          .update(proposals)
+          .set({ status: 'accepted' })
+          .where(and(eq(proposals.id, input.id), eq(proposals.status, 'pending')))
+          .returning({ id: proposals.id });
+        if (acceptedProposals.length === 0) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'This proposal was just modified by someone else. Refresh and try again.',
+          });
+        }
 
-      // 4. Reject all OTHER still-pending proposals on this job. This is
-      //    the only step that can be lossy without harm — if an extra
-      //    proposal slipped in between (3) and here, it'll be left as
-      //    'pending' but the job is locked so the freelancer can't act
-      //    on it. A nightly reconcile would catch the dangling one.
-      await ctx.db
-        .update(proposals)
-        .set({ status: 'rejected' })
-        .where(
-          and(
-            eq(proposals.jobId, proposal.jobId),
-            ne(proposals.id, input.id),
-            eq(proposals.status, 'pending'),
-          ),
-        );
+        // 3. Create the unfunded contract.
+        const [created] = await tx
+          .insert(contracts)
+          .values({
+            jobId: proposal.jobId,
+            clientId: proposal.job.clientId,
+            freelancerId: proposal.freelancerId,
+            proposalId: proposal.id,
+            title: proposal.job.title,
+            totalAmount: total.toString(),
+            platformFee: platformFee.toString(),
+            freelancerAmount: freelancerAmount.toString(),
+            paymentMethod: 'crypto',
+            deliveryDeadline,
+            milestones: initialMilestones,
+            currentMilestone: 0,
+          })
+          .returning();
+        if (!created) {
+          // Drizzle returns the inserted row; an empty result is
+          // a driver-level bug, not a business condition. Throw to
+          // roll back rather than continue with `undefined`.
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Contract insert returned no row',
+          });
+        }
+
+        // 4. Reject all OTHER still-pending proposals on this job.
+        //    Inside the tx so a job with one accepted proposal can
+        //    never coexist with stale 'pending' siblings.
+        await tx
+          .update(proposals)
+          .set({ status: 'rejected' })
+          .where(
+            and(
+              eq(proposals.jobId, proposal.jobId),
+              ne(proposals.id, input.id),
+              eq(proposals.status, 'pending'),
+            ),
+          );
+
+        return created;
+      });
 
       // 5. Notify the accepted freelancer + fire rejection notifications for the
       //    losing bidders. Best-effort — we run them in parallel after the
@@ -370,7 +387,7 @@ export const proposalRouter = createTRPCRouter({
           entityType: 'proposal',
           entityId: proposal.id,
           actionUrl: `/dashboard/proposals/${proposal.id}`,
-          metadata: { contractId: contract!.id, jobTitle },
+          metadata: { contractId: contract.id, jobTitle },
         }),
         ...rejectedBidders.map((r) =>
           notify({
