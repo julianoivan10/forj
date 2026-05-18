@@ -89,14 +89,19 @@ const STATUS_STYLE: Record<
     tone: 'The freelancer is working on the deliverable.',
   },
   submitted: {
-    label: 'Awaiting review',
+    // Explicit actor ("client review") so freelancer-side viewers
+    // don't read this as "system is reviewing" or "freelancer is
+    // reviewing themselves". Pairs with the tone text below.
+    label: 'Awaiting client review',
     variant: 'warning',
-    tone: 'The freelancer submitted work. The client should review and approve.',
+    tone:
+      'Freelancer submitted the work. Client should review and either approve, request revisions, or open a dispute.',
   },
   revision_requested: {
-    label: 'Revision requested',
+    label: 'Revisions requested',
     variant: 'warning',
-    tone: 'The client asked for changes. Resubmit when ready.',
+    tone:
+      'Client asked for changes. Freelancer needs to resubmit. The auto-release clock resets when the new submission lands.',
   },
   completed: {
     label: 'Completed',

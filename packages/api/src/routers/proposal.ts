@@ -191,7 +191,18 @@ export const proposalRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const proposal = await ctx.db.query.proposals.findFirst({
         where: eq(proposals.id, input.id),
-        with: { job: true },
+        with: {
+          job: true,
+          // Need the freelancer's wallet + deletedAt to gate the
+          // accept BEFORE we lock the job — otherwise the client
+          // gets stuck with a contract they can't fund because the
+          // freelancer never set up a wallet or has since deleted
+          // their account. Surfacing this at accept time is much
+          // better UX than at fundEscrow time (audit finding HIGH).
+          freelancer: {
+            columns: { id: true, walletAddress: true, deletedAt: true },
+          },
+        },
       });
       if (!proposal) throw new TRPCError({ code: 'NOT_FOUND' });
       if (proposal.job.clientId !== ctx.user.id) {
@@ -202,6 +213,23 @@ export const proposalRouter = createTRPCRouter({
       }
       if (proposal.job.status !== 'open') {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Job is not accepting proposals anymore' });
+      }
+      // Freelancer must be a live account with a wallet — escrow
+      // funding requires a wallet to release TO. Catching this at
+      // accept time means the client never lands on a contract
+      // detail page asking "why can't I fund this?".
+      if (proposal.freelancer.deletedAt) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'This freelancer has deleted their account. The proposal cannot be accepted.',
+        });
+      }
+      if (!proposal.freelancer.walletAddress) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message:
+            "This freelancer hasn't set up a wallet yet. They need to complete their wallet setup before you can fund an escrow.",
+        });
       }
 
       // Contract financials. Single source of truth: `DEFAULT_FEE_BPS` from

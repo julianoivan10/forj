@@ -166,6 +166,42 @@ function ProfileTab({
     onError: (err) => toast.error(err.message),
   });
 
+  // Inline validation. Compute per-field error messages from the
+  // current input state so they reflect what the user just typed,
+  // not what was last submitted. Empty / unset → no error (those are
+  // valid; only invalid content errors). Save is disabled until all
+  // errors clear so the user never round-trips a server zod failure.
+  const hourlyRateError = (() => {
+    if (hourlyRate === '' || hourlyRate == null) return null;
+    const n = Number(hourlyRate);
+    if (!Number.isFinite(n)) return 'Hourly rate must be a number.';
+    if (n <= 0) return 'Hourly rate must be greater than 0.';
+    if (n > 9999) return 'That seems unusually high — please double-check.';
+    return null;
+  })();
+  const portfolioError = (() => {
+    const v = portfolioUrl.trim();
+    if (!v) return null;
+    if (v.length > 500) return 'Portfolio URL is too long (max 500 chars).';
+    if (!/^https?:\/\//.test(v)) {
+      return 'Must start with http:// or https://.';
+    }
+    try {
+      new URL(v);
+      return null;
+    } catch {
+      return 'That doesn\'t look like a valid URL.';
+    }
+  })();
+  const bioError = bio.length > 500 ? 'Bio is over 500 chars.' : null;
+  const displayNameError =
+    displayName.trim().length > 0 && displayName.trim().length > 80
+      ? 'Display name is over 80 chars.'
+      : null;
+  const hasAnyError = Boolean(
+    hourlyRateError || portfolioError || bioError || displayNameError,
+  );
+
   const addSkill = () => {
     const v = skillInput.trim();
     if (!v || skills.includes(v) || skills.length >= 20) return;
@@ -337,9 +373,24 @@ function ProfileTab({
                 value={hourlyRate}
                 onChange={(e) => setHourlyRate(e.target.value)}
                 placeholder="50"
-                className="pl-7"
+                aria-invalid={hourlyRateError ? true : undefined}
+                aria-describedby={hourlyRateError ? 'hourlyRate-err' : undefined}
+                className={cn(
+                  'pl-7',
+                  hourlyRateError &&
+                    'border-[var(--color-error)] focus:border-[var(--color-error)]',
+                )}
               />
             </div>
+            {hourlyRateError ? (
+              <p
+                id="hourlyRate-err"
+                role="alert"
+                className="mt-1 text-xs text-[var(--color-error)]"
+              >
+                {hourlyRateError}
+              </p>
+            ) : null}
           </div>
           <div>
             <Label htmlFor="portfolio">Portfolio URL</Label>
@@ -354,9 +405,24 @@ function ProfileTab({
                 value={portfolioUrl}
                 onChange={(e) => setPortfolioUrl(e.target.value.slice(0, 500))}
                 placeholder="https://your-portfolio.com"
-                className="pl-8"
+                aria-invalid={portfolioError ? true : undefined}
+                aria-describedby={portfolioError ? 'portfolio-err' : undefined}
+                className={cn(
+                  'pl-8',
+                  portfolioError &&
+                    'border-[var(--color-error)] focus:border-[var(--color-error)]',
+                )}
               />
             </div>
+            {portfolioError ? (
+              <p
+                id="portfolio-err"
+                role="alert"
+                className="mt-1 text-xs text-[var(--color-error)]"
+              >
+                {portfolioError}
+              </p>
+            ) : null}
           </div>
         </div>
       </ProfileSection>
@@ -420,8 +486,21 @@ function ProfileTab({
         </div>
       </ProfileSection>
 
-      <div className="flex justify-end">
-        <Button onClick={handleSave} isLoading={updateMut.isPending} leftIcon={<Save />}>
+      <div className="flex flex-col items-end gap-2">
+        {/* Surfaces field-level errors at the save row so a user
+            scrolling past invalid fields still sees why Save is
+            disabled. Only shown when there's at least one error. */}
+        {hasAnyError ? (
+          <p className="text-xs text-[var(--color-error)]" role="status">
+            Fix the highlighted fields above before saving.
+          </p>
+        ) : null}
+        <Button
+          onClick={handleSave}
+          isLoading={updateMut.isPending}
+          disabled={hasAnyError}
+          leftIcon={<Save />}
+        >
           Save changes
         </Button>
       </div>

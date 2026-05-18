@@ -253,8 +253,17 @@ export const messageRouter = createTRPCRouter({
       const oldest = rows[0];
       const nextCursor = hasMore && oldest ? oldest.createdAt : null;
 
+      // Soft-deleted filter — the deletion contract says deleted
+      // accounts shouldn't be surface-able. Returning the deleted
+      // user's anonymised row would leak that they used to exist;
+      // NOT_FOUND keeps account deletion private (same shape as
+      // getOrStart). Their existing messages still render in the
+      // thread because the per-message sender join keeps the row
+      // for audit / history integrity — but the "who am I talking
+      // to" header / send target disappears, which is the correct
+      // privacy semantics.
       const other = await ctx.db.query.users.findFirst({
-        where: eq(users.id, otherId),
+        where: and(eq(users.id, otherId), isNull(users.deletedAt)),
         columns: {
           id: true,
           username: true,
