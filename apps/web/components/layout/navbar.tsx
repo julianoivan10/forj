@@ -19,6 +19,7 @@ const NAV_LINKS = [
   { labelKey: 'nav.browseJobs', href: '/jobs' },
   { labelKey: 'nav.browseServices', href: '/services' },
   { labelKey: 'nav.howItWorks', href: '/#how-it-works' },
+  { labelKey: 'nav.blog', href: '/blog' },
   { labelKey: 'nav.about', href: '/about' },
 ];
 

@@ -104,6 +104,124 @@
   }
 }
 
+/**
+ * Long-form article body styles. Used on /blog/<slug>.
+ *
+ * Why hand-rolled (not @tailwindcss/typography): the typography
+ * plugin ships ~80kB of CSS for variants we don't all use, and
+ * tuning it to our color tokens requires almost as much CSS as
+ * just writing the elements directly. Keep it small + matched to
+ * our design language.
+ */
+@layer components {
+  .markdown-body > * + * {
+    margin-top: 1.25em;
+  }
+  .markdown-body h1,
+  .markdown-body h2,
+  .markdown-body h3,
+  .markdown-body h4 {
+    font-family: var(--font-display);
+    color: var(--color-text-primary);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+    margin-top: 2em;
+  }
+  .markdown-body h2 {
+    font-size: 1.5rem;
+    border-bottom: 1px solid var(--color-border-subtle);
+    padding-bottom: 0.4em;
+  }
+  .markdown-body h3 {
+    font-size: 1.25rem;
+  }
+  .markdown-body h4 {
+    font-size: 1.05rem;
+  }
+  .markdown-body p {
+    color: var(--color-text-primary);
+    line-height: 1.75;
+  }
+  .markdown-body a {
+    color: var(--color-brand-primary);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .markdown-body a:hover {
+    text-decoration-thickness: 2px;
+  }
+  .markdown-body code {
+    background: var(--color-background-elevated);
+    border: 1px solid var(--color-border-subtle);
+    padding: 0.15em 0.4em;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-size: 0.9em;
+  }
+  .markdown-body pre {
+    background: var(--color-background-secondary);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-md);
+    padding: 1em 1.25em;
+    overflow-x: auto;
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-size: 0.875em;
+    line-height: 1.6;
+  }
+  .markdown-body pre code {
+    background: transparent;
+    border: 0;
+    padding: 0;
+    font-size: inherit;
+  }
+  .markdown-body blockquote {
+    border-left: 3px solid var(--color-brand-primary);
+    padding-left: 1em;
+    color: var(--color-text-secondary);
+    font-style: italic;
+  }
+  .markdown-body ul,
+  .markdown-body ol {
+    padding-left: 1.5em;
+  }
+  .markdown-body ul {
+    list-style-type: disc;
+  }
+  .markdown-body ol {
+    list-style-type: decimal;
+  }
+  .markdown-body li + li {
+    margin-top: 0.4em;
+  }
+  .markdown-body hr {
+    border: 0;
+    border-top: 1px solid var(--color-border-default);
+    margin: 2.5em 0;
+  }
+  .markdown-body img {
+    max-width: 100%;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border-default);
+  }
+  .markdown-body table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9em;
+  }
+  .markdown-body th,
+  .markdown-body td {
+    border: 1px solid var(--color-border-default);
+    padding: 0.6em 0.9em;
+    text-align: left;
+  }
+  .markdown-body th {
+    background: var(--color-background-secondary);
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+}
+
 @layer utilities {
   .font-display {
     font-family: var(--font-display);

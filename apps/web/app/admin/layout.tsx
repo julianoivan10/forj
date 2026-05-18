@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ShieldAlert, Gavel, Users, FileSearch, ArrowLeft } from 'lucide-react';
+import { BookOpen, ShieldAlert, Gavel, Users, FileSearch, ArrowLeft } from 'lucide-react';
 
 /**
  * Admin shell — wraps every `/admin/*` page.
@@ -46,6 +46,7 @@ const NAV = [
   { href: '/admin', label: 'Overview', icon: ShieldAlert },
   { href: '/admin/disputes', label: 'Disputes', icon: Gavel },
   { href: '/admin/users', label: 'User recovery', icon: Users },
+  { href: '/admin/articles', label: 'Articles', icon: BookOpen },
   { href: '/admin/audit-log', label: 'Audit log', icon: FileSearch },
 ];
 

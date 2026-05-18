@@ -1,4 +1,5 @@
 import { adminRouter } from './routers/admin';
+import { articleRouter } from './routers/article';
 import { contractRouter } from './routers/contract';
 import { inboxRouter } from './routers/inbox';
 import { jobRouter } from './routers/job';
@@ -27,6 +28,7 @@ export const appRouter = createTRPCRouter({
   savedService: savedServiceRouter,
   search: searchRouter,
   admin: adminRouter,
+  article: articleRouter,
 });
 
 export type AppRouter = typeof appRouter;
