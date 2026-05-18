@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "dotenv -e ../../.env -- next dev --turbopack",
-    "build": "dotenv -e ../../.env -- next build",
+    "//build": "Vercel-friendly: no dotenv-cli (Vercel injects env directly). Use build:local for a local prod build that reads ../../.env.",
+    "build": "next build",
+    "build:local": "dotenv -e ../../.env -- next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
