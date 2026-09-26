@@ -25,7 +25,7 @@ export default function NotFound() {
 
         <Link
           href="/"
-          className="mt-4 inline-flex h-12 items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-brand-primary)] px-8 text-base font-semibold text-white shadow-[0_0_20px_var(--color-glow-brand)] transition-all duration-200 hover:bg-[#c73e1d] hover:shadow-[0_0_40px_var(--color-glow-brand-strong)] active:scale-[0.97]"
+          className="mt-4 inline-flex h-12 items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-brand-primary)] px-8 text-base font-semibold text-[var(--color-on-brand)] transition-all duration-200 hover:bg-[var(--color-brand-secondary)] active:scale-[0.97]"
         >
           Go Home
         </Link>

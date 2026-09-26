@@ -11,13 +11,27 @@ import '@nomicfoundation/hardhat-verify';
 // path, `dotenv` would look in CWD = `packages/contracts/` which is empty,
 // and the deploy would fail with "DEPLOYER_PRIVATE_KEY missing".
 import { config as dotenvConfig } from 'dotenv';
+import { existsSync } from 'fs';
 import { resolve } from 'path';
+
+// Deployment secrets belong in packages/contracts/.env.deploy (gitignored),
+// NOT in the root .env that the web app loads. The root file is still read
+// for shared, non-secret values (RPC URLs), but a deployer key found only
+// there triggers a warning.
+const deployEnv = resolve(__dirname, '.env.deploy');
+if (existsSync(deployEnv)) dotenvConfig({ path: deployEnv });
+const keyFromDeployFile = Boolean(process.env.DEPLOYER_PRIVATE_KEY);
 dotenvConfig({ path: resolve(__dirname, '..', '..', '.env') });
+if (!keyFromDeployFile && process.env.DEPLOYER_PRIVATE_KEY && process.argv.some((a) => a.includes('deploy') || a === 'verify')) {
+  console.warn(
+    '[hardhat] DEPLOYER_PRIVATE_KEY was loaded from the shared root .env. Move it to packages/contracts/.env.deploy so the web app never has it in its environment.',
+  );
+}
 
 import type { HardhatUserConfig } from 'hardhat/config';
 
 /**
- * Hardhat config for WorkChain on-chain escrow.
+ * Hardhat config for the Forj on-chain escrow contracts.
  *
  * Networks:
  *  - `baseSepolia` (84532) — testnet, used for all dev + staging

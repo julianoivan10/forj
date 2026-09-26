@@ -3,7 +3,7 @@
  * as an `<img>` source, `<a href>` target, or background-image in
  * the app.
  *
- * Sole upload paths today are UploadThing (`utfs.io`) and Pinata's
+ * Sole upload paths today are UploadThing (`utfs.io`, `<appId>.ufs.sh`) and Pinata's
  * public IPFS gateway (`gateway.pinata.cloud`) — same set as
  * `next.config.ts` remotePatterns + the message attachment
  * whitelist. Anything else gets rejected to prevent attackers from
@@ -26,6 +26,14 @@ export const ALLOWED_FILE_HOSTS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * UploadThing v7.4+ serves files from a per-app subdomain
+ * (`<appId>.ufs.sh`) and returns that as `file.ufsUrl`, which is what our
+ * upload routes hand back to the browser. Only single-label subdomains of
+ * `ufs.sh` match, so `evil.com.ufs.sh.attacker.io` does not.
+ */
+const ALLOWED_FILE_HOST_SUFFIXES: readonly string[] = ['.ufs.sh'];
+
+/**
  * Returns true when `raw` is an https URL with a hostname in the
  * allow-list. Rejects:
  *   - Anything that doesn't parse as URL (`undefined`, raw strings).
@@ -45,7 +53,12 @@ export function isAllowedFileUrl(raw: string): boolean {
     return false;
   }
   if (url.protocol !== 'https:') return false;
-  return ALLOWED_FILE_HOSTS.has(url.hostname);
+  if (ALLOWED_FILE_HOSTS.has(url.hostname)) return true;
+  return ALLOWED_FILE_HOST_SUFFIXES.some((suffix) => {
+    if (!url.hostname.endsWith(suffix)) return false;
+    const label = url.hostname.slice(0, -suffix.length);
+    return /^[a-z0-9-]+$/i.test(label);
+  });
 }
 
 /**

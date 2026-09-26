@@ -1,9 +1,49 @@
 import { TRPCError } from '@trpc/server';
-import { and, desc, eq, gte, ilike, inArray, jobs, lte, or, sql, users } from '@forj/db';
+import { and, desc, eq, gte, ilike, inArray, jobs, lte, or, proposals, sql, users } from '@forj/db';
 import { z } from 'zod';
 import { isAllowedFileUrl } from '../lib/file-host';
-import { checkRateLimit, RATE_LIMITS } from '../middleware/rate-limit';
+import type { Context } from '../context';
+import { checkRateLimit, clientIp, RATE_LIMITS } from '../middleware/rate-limit';
 import { clientProcedure, createTRPCRouter, protectedProcedure, publicProcedure } from '../trpc';
+
+/**
+ * Poster fields safe to show anonymously. These endpoints are public, so
+ * the full users row (email, privyId, notification preferences) must never
+ * be joined here.
+ */
+const publicClientColumns = {
+  id: true,
+  username: true,
+  displayName: true,
+  avatarUrl: true,
+  workScore: true,
+  badgeTier: true,
+  totalJobsCompleted: true,
+  createdAt: true,
+} as const;
+
+/**
+ * Private jobs (service orders) carry buyer notes; only the poster and the
+ * freelancer on the order may read them. Everyone else gets NOT_FOUND so
+ * the job's existence isn't confirmed.
+ */
+async function assertJobVisible<T extends { id: string; clientId: string; visibility: string }>(
+  ctx: { db: Context['db']; user: { id: string } | null },
+  job: T | undefined,
+): Promise<T> {
+  if (!job) throw new TRPCError({ code: 'NOT_FOUND' });
+  if (job.visibility === 'public') return job;
+  const viewerId = ctx.user?.id;
+  if (viewerId && viewerId === job.clientId) return job;
+  if (viewerId) {
+    const onOrder = await ctx.db.query.proposals.findFirst({
+      where: and(eq(proposals.jobId, job.id), eq(proposals.freelancerId, viewerId)),
+      columns: { id: true },
+    });
+    if (onOrder) return job;
+  }
+  throw new TRPCError({ code: 'NOT_FOUND' });
+}
 
 /** zod refinement for uploads that must come from our approved hosts.
  *  Centralised so the same error message flows everywhere. */
@@ -118,25 +158,21 @@ export const jobRouter = createTRPCRouter({
     }),
 
   getBySlug: publicProcedure
-    .input(z.object({ slug: z.string() }))
+    .input(z.object({ slug: z.string().max(200) }))
     .query(async ({ ctx, input }) => {
       const job = await ctx.db.query.jobs.findFirst({
         where: eq(jobs.slug, input.slug),
-        with: {
-          client: true,
-        },
+        with: { client: { columns: publicClientColumns } },
       });
-      if (!job) throw new TRPCError({ code: 'NOT_FOUND' });
-      return job;
+      return assertJobVisible(ctx, job);
     }),
 
   getById: publicProcedure.input(z.object({ id: z.string().uuid() })).query(async ({ ctx, input }) => {
     const job = await ctx.db.query.jobs.findFirst({
       where: eq(jobs.id, input.id),
-      with: { client: true },
+      with: { client: { columns: publicClientColumns } },
     });
-    if (!job) throw new TRPCError({ code: 'NOT_FOUND' });
-    return job;
+    return assertJobVisible(ctx, job);
   }),
 
   create: clientProcedure
@@ -190,6 +226,8 @@ export const jobRouter = createTRPCRouter({
   incrementView: publicProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      // Unauthenticated write: throttle per IP so view counts can't be pumped.
+      await checkRateLimit(clientIp(ctx.headers), 'jobView', RATE_LIMITS.jobView);
       await ctx.db
         .update(jobs)
         .set({ viewCount: sql`${jobs.viewCount} + 1` })

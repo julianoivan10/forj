@@ -1,5 +1,6 @@
 import type { PrivyClientConfig } from '@privy-io/react-auth';
 import { base, baseSepolia } from 'viem/chains';
+import { APP_CHAIN_ID } from '@/lib/chain';
 
 /**
  * Resolve the active chain at module load. The default falls back to Base
@@ -7,7 +8,7 @@ import { base, baseSepolia } from 'viem/chains';
  * common dev-time foot-gun (testers expect Sepolia). Set
  * `NEXT_PUBLIC_CHAIN_ID=84532` in `.env` for testnet runs.
  */
-const chainIdEnv = Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? base.id);
+const chainIdEnv = APP_CHAIN_ID;
 const defaultChainViem = chainIdEnv === baseSepolia.id ? baseSepolia : base;
 
 const baseRpc = process.env.NEXT_PUBLIC_BASE_RPC_URL ?? 'https://mainnet.base.org';
@@ -21,8 +22,8 @@ const sepoliaRpc =
 export const privyConfig: PrivyClientConfig = {
   loginMethods: ['email', 'google', 'twitter', 'wallet'],
   appearance: {
-    theme: 'dark',
-    accentColor: '#DC4C2A',
+    theme: 'light',
+    accentColor: '#1F3FD1',
     logo: '/logo.svg',
     showWalletLoginFirst: false,
     // Display name shown in the wallet permission prompt (MetaMask etc).

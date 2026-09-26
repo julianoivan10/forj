@@ -15,7 +15,7 @@ import {
 } from '@forj/contracts';
 
 /**
- * Server-side companion to the on-chain WorkChainEscrow contract.
+ * Server-side companion to the on-chain ForjEscrow contract.
  *
  * Why this exists:
  *   The frontend signs a fund / release tx with the user's Privy wallet, then
@@ -137,12 +137,43 @@ export function dollarsToUsdcUnits(amount: string | number): bigint {
   return parseUnits(typeof amount === 'string' ? amount : amount.toString(), USDC_DECIMALS);
 }
 
+/**
+ * The single chain this deployment settles on, from `NEXT_PUBLIC_CHAIN_ID`.
+ *
+ * Every verifier pins to it. Without the pin, a mainnet deployment would
+ * accept a caller-supplied `chainId: 84532` and mark a contract funded
+ * against a Base Sepolia escrow paid in worthless testnet USDC. Fails
+ * closed when the env var is missing or not a supported chain.
+ */
+export function getConfiguredChainId(): number {
+  const raw = process.env.NEXT_PUBLIC_CHAIN_ID;
+  const chainId = raw ? Number(raw) : NaN;
+  if (chainId !== base.id && chainId !== baseSepolia.id) {
+    throw new EscrowVerificationError(
+      'wrong_chain',
+      'Server chain is not configured (NEXT_PUBLIC_CHAIN_ID must be 8453 or 84532).',
+    );
+  }
+  return chainId;
+}
+
+function assertConfiguredChain(chainId: number): void {
+  const configured = getConfiguredChainId();
+  if (chainId !== configured) {
+    throw new EscrowVerificationError(
+      'wrong_chain',
+      `Transaction is on chain ${chainId}, but Forj settles on chain ${configured}. Switch networks and try again.`,
+    );
+  }
+}
+
 function expectedRegistry(chainId: number): Hex {
+  assertConfiguredChain(chainId);
   const addrs = getAddresses(chainId);
   if (!addrs.escrow) {
     throw new EscrowVerificationError(
       'wrong_contract',
-      `WorkChainEscrow not yet deployed on chainId ${chainId}. Update packages/contracts/src/addresses.ts.`,
+      `ForjEscrow is not deployed on chainId ${chainId}. Update packages/contracts/src/addresses.ts.`,
     );
   }
   return addrs.escrow as Hex;

@@ -1,152 +1,85 @@
 'use client';
 
-import Link from 'next/link';
-import { motion } from 'framer-motion';
-import { ArrowRight } from 'lucide-react';
-import { api } from '@/lib/trpc/client';
+import { useMemo, useState } from 'react';
+import { Button, EmptyState, Skeleton } from '@/components/ui';
+import { ContractsLedger } from '@/components/console/console-view';
 import { useAuth } from '@/hooks/use-auth';
-import { Button, Badge, EmptyState as SharedEmptyState, Skeleton, UserAvatar } from '@/components/ui';
-import { formatUSD } from '@/lib/utils';
+import { isActiveContract } from '@/lib/contract-status';
+import { api } from '@/lib/trpc/client';
+import { cn } from '@/lib/utils';
 
-type StatusInfo = { label: string; variant: 'success' | 'warning' | 'default' | 'brand' };
-
-const DEFAULT_CONTRACT_STATUS: StatusInfo = { label: 'Active', variant: 'brand' };
-
-const STATUS_MAP: Record<string, StatusInfo> = {
-  created: { label: 'Created', variant: 'default' },
-  funded: { label: 'Funded', variant: 'brand' },
-  in_progress: DEFAULT_CONTRACT_STATUS,
-  submitted: { label: 'Submitted', variant: 'brand' },
-  revision_requested: { label: 'Revision', variant: 'warning' },
-  completed: { label: 'Completed', variant: 'success' },
-  disputed: { label: 'Disputed', variant: 'warning' },
-  cancelled: { label: 'Cancelled', variant: 'default' },
-  refunded: { label: 'Refunded', variant: 'default' },
-};
+type Filter = 'active' | 'closed' | 'all';
 
 export default function DashboardContractsPage() {
   const { user } = useAuth();
   const contracts = api.contract.myContracts.useQuery();
+  const [filter, setFilter] = useState<Filter>('active');
+  const now = useMemo(() => new Date(), []);
+
+  const all = contracts.data ?? [];
+  const activeCount = all.filter(isActiveContract).length;
+  const shown = all.filter((c) => (filter === 'all' ? true : filter === 'active' ? isActiveContract(c) : !isActiveContract(c)));
+
+  const tabs: Array<{ key: Filter; label: string; count: number }> = [
+    { key: 'active', label: 'Active', count: activeCount },
+    { key: 'closed', label: 'Closed', count: all.length - activeCount },
+    { key: 'all', label: 'All', count: all.length },
+  ];
 
   return (
-    <div className="mx-auto max-w-5xl">
-      <div>
-        <h1 className="font-display text-2xl font-extrabold tracking-tight text-[var(--color-text-primary)] sm:text-3xl">
-          Contracts
+    <div className="mx-auto max-w-6xl">
+      <header className="border-b border-[var(--color-rule)] pb-5">
+        <p className="label-mono">Contracts</p>
+        <h1 className="mt-2 font-display text-3xl font-semibold tracking-[-0.03em] text-[var(--color-text-primary)] sm:text-4xl">
+          Every agreement, and where its money is.
         </h1>
-        <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-          All your active, completed, and past contracts in one place.
-        </p>
+      </header>
+
+      <div role="tablist" aria-label="Filter contracts" className="mt-6 flex gap-6 border-b border-[var(--color-border-default)]">
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            role="tab"
+            aria-selected={filter === t.key}
+            onClick={() => setFilter(t.key)}
+            className={cn(
+              '-mb-px min-h-11 border-b-2 text-sm transition-colors',
+              filter === t.key
+                ? 'border-[var(--color-brand-primary)] font-semibold text-[var(--color-text-primary)]'
+                : 'border-transparent text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]',
+            )}
+          >
+            {t.label} <span className="font-mono text-xs text-[var(--color-text-tertiary)] tnum">{t.count}</span>
+          </button>
+        ))}
       </div>
 
-      <div className="mt-8">
+      <div className="mt-2">
         {contracts.isPending ? (
-          <div className="flex flex-col gap-4">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-24 rounded-[var(--radius-xl)]" />
+          <div className="mt-4 space-y-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-14" />
             ))}
           </div>
         ) : contracts.isError ? (
-          <EmptyBox
-            title="Couldn't load contracts"
+          <EmptyState
+            variant="contracts"
+            title="Couldn't load your contracts"
             description={contracts.error.message}
             action={<Button variant="secondary" onClick={() => contracts.refetch()}>Try again</Button>}
+            className="mt-6"
           />
-        ) : !contracts.data?.length ? (
-          <EmptyBox
-            title="No contracts yet"
-            description="Contracts are created once a proposal is accepted and escrow is funded. Start by posting or applying to jobs."
+        ) : shown.length === 0 ? (
+          <EmptyState
+            variant="contracts"
+            title={filter === 'active' ? 'No contracts in progress.' : filter === 'closed' ? 'No closed contracts yet.' : 'No contracts yet.'}
+            description="A contract starts when a proposal is accepted or a service is ordered. Funding it locks the payment in escrow."
+            className="mt-6"
           />
-        ) : (
-          <div className="flex flex-col gap-4">
-            {contracts.data.map((contract, i) => {
-              const statusInfo = STATUS_MAP[contract.status] ?? DEFAULT_CONTRACT_STATUS;
-              const isClient = contract.clientId === user?.id;
-              const counterparty = isClient ? contract.freelancer : contract.client;
-              const counterpartyLabel = isClient ? 'Freelancer' : 'Client';
-
-              return (
-                <motion.div
-                  key={contract.id}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.05 }}
-                >
-                  <Link
-                    href={`/dashboard/contracts/${contract.id}`}
-                    className="group block rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-background-secondary)] p-5 transition-all hover:border-[var(--color-border-strong)] hover:bg-[var(--color-background-tertiary)]/40"
-                  >
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
-                          <span className="text-xs text-[var(--color-text-tertiary)]">
-                            {new Date(contract.createdAt).toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric',
-                            })}
-                          </span>
-                        </div>
-                        <p className="mt-2 truncate font-display text-base font-semibold text-[var(--color-text-primary)] transition-colors group-hover:text-[var(--color-brand-primary)]">
-                          {contract.job.title}
-                        </p>
-                        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-[var(--color-text-secondary)]">
-                          <UserAvatar
-                            name={counterparty.displayName ?? counterparty.username ?? ''}
-                            imageUrl={counterparty.avatarUrl}
-                            size="sm"
-                          />
-                          <span>
-                            {counterpartyLabel}:{' '}
-                            <span className="font-medium text-[var(--color-text-primary)]">
-                              {counterparty.displayName ?? counterparty.username}
-                            </span>
-                          </span>
-                          <span className="mx-1 text-[var(--color-text-disabled)]">·</span>
-                          <span className="font-semibold text-[var(--color-text-primary)]">
-                            {formatUSD(contract.totalAmount)}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="shrink-0">
-                        <span className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-text-tertiary)] transition-colors group-hover:text-[var(--color-brand-primary)]">
-                          Details
-                          <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
-                        </span>
-                      </div>
-                    </div>
-                  </Link>
-                </motion.div>
-              );
-            })}
-          </div>
-        )}
+        ) : user ? (
+          <ContractsLedger contracts={shown} userId={user.id} now={now} />
+        ) : null}
       </div>
-    </div>
-  );
-}
-
-function EmptyBox({
-  title,
-  description,
-  action,
-}: {
-  title: string;
-  description: string;
-  action?: React.ReactNode;
-}) {
-  // Delegates to the shared Bauhaus illustration variant. Wrapping
-  // div keeps the dashed border framing every empty surface here
-  // shares with the rest of the dashboard.
-  return (
-    <div className="rounded-[var(--radius-xl)] border border-dashed border-[var(--color-border-default)] bg-[var(--color-background-secondary)]/40">
-      <SharedEmptyState
-        variant="contracts"
-        title={title}
-        description={description}
-        action={action}
-      />
     </div>
   );
 }

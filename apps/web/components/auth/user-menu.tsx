@@ -59,7 +59,7 @@ export function UserMenu() {
           sideOffset={10}
           className={cn(
             'z-50 min-w-[260px] overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-default)]',
-            'bg-[var(--color-background-secondary)] shadow-2xl shadow-black/40 backdrop-blur-xl',
+            'bg-[var(--color-background-secondary)]',
             'data-[state=open]:animate-fade-in-up',
           )}
         >

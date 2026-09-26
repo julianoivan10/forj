@@ -31,6 +31,7 @@ import type { inferRouterOutputs } from '@trpc/server';
 import type { AppRouter } from '@forj/api';
 import { api } from '@/lib/trpc/client';
 import { useResolveDispute } from '@/hooks/use-escrow';
+import { V3ResolveModal } from '@/components/admin/v3-resolve-modal';
 import { formatUSD } from '@/lib/utils';
 
 /**
@@ -137,8 +138,17 @@ export default function AdminDisputesPage() {
         )}
       </div>
 
+      {/* V3 escrows: bounded share-based resolution; v2: legacy three-way split. */}
+      <V3ResolveModal
+        contract={active?.escrowVersion === 'v3' ? active : null}
+        onClose={() => setActive(null)}
+        onDone={() => {
+          setActive(null);
+          utils.admin.listDisputed.invalidate();
+        }}
+      />
       <ResolveModal
-        contract={active}
+        contract={active?.escrowVersion === 'v3' ? null : active}
         onClose={() => setActive(null)}
         onSubmit={handleResolve}
         isSubmitting={resolve.status === 'releasing' || resolve.status === 'confirming' || recordMut.isPending}

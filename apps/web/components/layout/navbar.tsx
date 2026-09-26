@@ -17,10 +17,10 @@ import { useAuth, hasPrivy } from '@/hooks/use-auth';
 // language switch re-renders the link labels without a reload.
 const NAV_LINKS = [
   { labelKey: 'nav.browseJobs', href: '/jobs' },
+  { labelKey: 'nav.postJob', href: '/jobs/post' },
   { labelKey: 'nav.browseServices', href: '/services' },
-  { labelKey: 'nav.howItWorks', href: '/#how-it-works' },
+  { labelKey: 'nav.howItWorks', href: '/how-it-works' },
   { labelKey: 'nav.blog', href: '/blog' },
-  { labelKey: 'nav.about', href: '/about' },
 ];
 
 export function Navbar() {
@@ -49,7 +49,7 @@ export function Navbar() {
         className={cn(
           'fixed top-0 left-0 right-0 z-50 transition-all duration-300',
           scrolled
-            ? 'glass shadow-lg shadow-black/20'
+            ? 'glass'
             : 'bg-transparent',
         )}
       >
@@ -58,12 +58,12 @@ export function Navbar() {
           <Link href="/" className="flex items-center gap-2.5" aria-label="Forj Home">
             <Image src="/logo.svg" alt="" width={32} height={32} className="size-8" />
             <span className="font-display text-xl font-bold tracking-tight text-[var(--color-text-primary)]">
-              For<span className="text-[var(--color-brand-primary)]">j</span>
+              Forj
             </span>
           </Link>
 
           {/* Desktop links */}
-          <div className="hidden items-center gap-1 md:flex">
+          <div className="hidden items-center gap-1 lg:flex">
             {NAV_LINKS.map((link) => (
               <Link
                 key={link.href}
@@ -76,7 +76,7 @@ export function Navbar() {
           </div>
 
           {/* Desktop CTA / User menu */}
-          <div className="hidden items-center gap-3 md:flex">
+          <div className="hidden items-center gap-3 lg:flex">
             <SearchTrigger />
             <LanguageSwitcher />
             <ThemeToggle />
@@ -92,7 +92,7 @@ export function Navbar() {
                 </Link>
                 <Link
                   href="/signup"
-                  className="inline-flex h-10 items-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-brand-primary)] px-5 text-sm font-semibold text-white hover:bg-[#c73e1d] shadow-[0_0_20px_var(--color-glow-brand)] transition-all duration-200 hover:shadow-[0_0_40px_var(--color-glow-brand-strong)] active:scale-[0.97]"
+                  className="inline-flex h-10 items-center gap-2 bg-[var(--color-brand-primary)] px-5 text-sm font-semibold text-[var(--color-on-brand)] transition-colors duration-150 hover:bg-[var(--color-brand-secondary)]"
                 >
                   {t('nav.signUp')}
                   <ChevronRight className="size-4" />
@@ -106,8 +106,9 @@ export function Navbar() {
           {/* Mobile menu button */}
           <button
             onClick={() => setMobileOpen(!mobileOpen)}
-            className="inline-flex size-10 items-center justify-center rounded-[var(--radius-md)] text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-text-primary)]/[0.06] md:hidden"
+            className="inline-flex size-10 items-center justify-center rounded-[var(--radius-md)] text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-text-primary)]/[0.06] lg:hidden"
             aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={mobileOpen}
           >
             {mobileOpen ? <X className="size-5" /> : <Menu className="size-5" />}
           </button>
@@ -121,7 +122,7 @@ export function Navbar() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
+            className="fixed inset-0 z-40 bg-black/60 lg:hidden"
             onClick={() => setMobileOpen(false)}
           />
         )}
@@ -135,7 +136,7 @@ export function Navbar() {
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-            className="fixed top-0 right-0 z-50 flex h-full w-[280px] flex-col bg-[var(--color-background-secondary)] border-l border-[var(--color-border-default)] md:hidden"
+            className="fixed top-0 right-0 z-50 flex h-full w-[280px] flex-col bg-[var(--color-background-secondary)] border-l border-[var(--color-border-default)] lg:hidden"
           >
             <div className="flex h-16 items-center justify-between px-4">
               <span className="font-display text-lg font-bold text-[var(--color-text-primary)]">
@@ -174,7 +175,7 @@ export function Navbar() {
                 <Link
                   href="/dashboard"
                   onClick={() => setMobileOpen(false)}
-                  className="flex h-11 items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-brand-primary)] text-sm font-semibold text-white hover:bg-[#c73e1d]"
+                  className="flex h-11 items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-brand-primary)] text-sm font-semibold text-[var(--color-on-brand)] hover:bg-[var(--color-brand-secondary)]"
                 >
                   Go to dashboard
                   <ChevronRight className="size-4" />
@@ -191,7 +192,7 @@ export function Navbar() {
                   <Link
                     href="/signup"
                     onClick={() => setMobileOpen(false)}
-                    className="flex h-11 items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-brand-primary)] text-sm font-semibold text-white hover:bg-[#c73e1d]"
+                    className="flex h-11 items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-brand-primary)] text-sm font-semibold text-[var(--color-on-brand)] hover:bg-[var(--color-brand-secondary)]"
                   >
                     Get Started
                     <ChevronRight className="size-4" />

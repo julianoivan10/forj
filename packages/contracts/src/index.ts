@@ -6,6 +6,7 @@
  */
 export { workChainEscrowAbi, erc20Abi, type WorkChainEscrowAbi } from './abi';
 export { forjEscrowAbi, type ForjEscrowAbi } from './forj-escrow-abi';
+export { forjEscrowV3Abi, type ForjEscrowV3Abi } from './forj-escrow-v3-abi';
 export { BASE, BASE_SEPOLIA, getAddresses, type SupportedChainId } from './addresses';
 
 /**
@@ -56,3 +57,22 @@ export const DEFAULT_FREELANCER_FEE_BPS = 200;   // 2%
 
 /** Default auto-release window after submit, in seconds. 7 days. */
 export const DEFAULT_AUTO_RELEASE_WINDOW = 7 * 24 * 60 * 60;
+
+/**
+ * ForjEscrowV3.Status mirror, index-aligned with the Solidity enum.
+ * Keep in sync with contracts/ForjEscrowV3.sol.
+ */
+export const ESCROW_V3_STATUS = [
+  'none',
+  'funded',
+  'submitted',
+  'revision_requested',
+  'disputed',
+  'released',
+  'refunded',
+  'resolved',
+] as const;
+export type EscrowV3Status = (typeof ESCROW_V3_STATUS)[number];
+
+/** Terminal V3 states: no further transition is possible on-chain. */
+export const ESCROW_V3_TERMINAL: readonly EscrowV3Status[] = ['released', 'refunded', 'resolved'];

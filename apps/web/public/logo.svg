@@ -1,28 +1,13 @@
 <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Forj logo">
   <title>Forj</title>
-  <!-- Vermillion rounded square — primary brand surface. -->
-  <rect width="32" height="32" rx="7" fill="#DC4C2A"/>
-
-  <!-- Cobalt anvil base. Slightly inset on both sides so it reads as
-       a *base* the F sits on, not a full-bleed underline. -->
-  <rect x="4" y="24" width="24" height="3" fill="#2E4FE0"/>
-
-  <!-- Saffron spark — completes the Bauhaus triad. Reads as a hot
-       cinder coming off the anvil; tiny but visually anchors the
-       composition's right-hand corner so the mark feels balanced
-       rather than stem-heavy on the left. -->
-  <rect x="24" y="20" width="4" height="4" fill="#F2C14E"/>
-
-  <!-- F glyph in paper cream. Proportions tuned for a 32px target:
-         - vertical stem = 3px, full height
-         - top arm = 16px, asserts the F over a hesitant L
-         - middle bar = 10px, shorter than top so the silhouette
-           reads as F, not E (E has equal arms)
-         - 1px breathing gap above the anvil so cream and cobalt
-           never touch and the mark stays crisp at favicon size -->
-  <g fill="#EAE5DA">
-    <rect x="9" y="6" width="3" height="17"/>
-    <rect x="9" y="6" width="16" height="3"/>
-    <rect x="9" y="14" width="10" height="2.5"/>
+  <!-- Ink block: the work. -->
+  <rect x="0.5" y="0.5" width="31" height="31" rx="3" fill="#16150F" stroke="#57564F" stroke-width="1"/>
+  <!-- Paper F: the product mark. Stem, long arm, shorter middle bar. -->
+  <g fill="#F3F1EC">
+    <rect x="9" y="6" width="3.5" height="17"/>
+    <rect x="9" y="6" width="15" height="3.5"/>
+    <rect x="9" y="13.5" width="9.5" height="3"/>
   </g>
+  <!-- Cobalt bar: the contract layer the work sits on. -->
+  <rect x="5" y="25" width="22" height="2.5" fill="#1F3FD1"/>
 </svg>

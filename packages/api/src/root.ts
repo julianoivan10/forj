@@ -1,6 +1,7 @@
 import { adminRouter } from './routers/admin';
 import { articleRouter } from './routers/article';
 import { contractRouter } from './routers/contract';
+import { escrowRouter } from './routers/escrow';
 import { inboxRouter } from './routers/inbox';
 import { jobRouter } from './routers/job';
 import { messageRouter } from './routers/message';
@@ -19,6 +20,7 @@ export const appRouter = createTRPCRouter({
   job: jobRouter,
   proposal: proposalRouter,
   contract: contractRouter,
+  escrow: escrowRouter,
   message: messageRouter,
   review: reviewRouter,
   notification: notificationRouter,

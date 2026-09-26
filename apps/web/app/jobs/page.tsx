@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import { Loader2, Plus } from 'lucide-react';
+import { Loader2, Plus, SlidersHorizontal } from 'lucide-react';
 import { Button, EmptyState as SharedEmptyState, Skeleton } from '@/components/ui';
 import { JobCard } from '@/components/jobs/job-card';
 import {
@@ -64,6 +64,8 @@ function JobsPageInner() {
     budgetMax: initial.budgetMax,
   });
   const [search, setSearch] = useState(initial.search);
+  // Mobile only: filters collapse behind a toggle so results stay above the fold.
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [sort, setSort] = useState<JobsSort>(initial.sort);
   const debouncedSearch = useDebounce(search, 350);
 
@@ -115,7 +117,7 @@ function JobsPageInner() {
             Browse jobs
           </h1>
           <p className="mt-1 text-sm text-[var(--color-text-secondary)] sm:text-base">
-            Every contract is backed by on-chain USDC escrow. 5% platform fee, 0 middlemen.
+            Every contract is backed by on-chain USDC escrow on Base.
           </p>
         </div>
         <Link href="/jobs/post">
@@ -125,8 +127,25 @@ function JobsPageInner() {
         </Link>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
-        <JobsFilters value={filters} onChange={setFilters} onReset={resetFilters} />
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <div className="min-w-0">
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((o) => !o)}
+            aria-expanded={filtersOpen}
+            aria-controls="jobs-filters"
+            className="flex min-h-11 w-full items-center justify-between rounded-[var(--radius-md)] border border-[var(--color-border-default)] px-4 text-sm font-medium text-[var(--color-text-primary)] lg:hidden"
+          >
+            <span className="inline-flex items-center gap-2">
+              <SlidersHorizontal className="size-4" aria-hidden />
+              Filters
+            </span>
+            <span className="text-[var(--color-text-tertiary)]">{filtersOpen ? 'Hide' : 'Show'}</span>
+          </button>
+          <div id="jobs-filters" className={filtersOpen ? 'mt-3 lg:mt-0' : 'hidden lg:block'}>
+            <JobsFilters value={filters} onChange={setFilters} onReset={resetFilters} />
+          </div>
+        </div>
 
         <div className="flex flex-col gap-5">
           <JobsToolbar

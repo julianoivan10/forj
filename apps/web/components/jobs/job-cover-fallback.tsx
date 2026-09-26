@@ -23,12 +23,14 @@ interface JobCoverFallbackProps {
   category?: string | null;
 }
 
+// Restricted to the product palette: ink, cobalt, ochre, paper. (Key names
+// predate the redesign and are kept so the category mapping stays stable.)
 const PALETTE = {
-  vermillion: '#DC4C2A',
-  cobalt: '#2E4FE0',
-  saffron: '#F2C14E',
-  cream: '#EAE5DA',
-  charcoal: '#1E1C16',
+  vermillion: '#16150F',
+  cobalt: '#1F3FD1',
+  saffron: '#9A6A0B',
+  cream: '#F3F1EC',
+  charcoal: '#16150F',
 } as const;
 
 // Categories nudge towards a "lead" colour. Falls back to vermillion.

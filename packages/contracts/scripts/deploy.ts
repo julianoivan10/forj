@@ -17,6 +17,10 @@ import { BASE, BASE_SEPOLIA, DEFAULT_AUTO_RELEASE_WINDOW, DEFAULT_FEE_BPS } from
  */
 async function main() {
   const network = hre.network.name;
+  // Legacy v1 is Sepolia-only; the app no longer routes funds to it.
+  if (network === 'base') {
+    throw new Error('Refusing to deploy legacy WorkChainEscrow (v1) to Base mainnet. Use scripts/deploy-forj.ts.');
+  }
   const usdc =
     network === 'base'
       ? BASE.usdc

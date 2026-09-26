@@ -50,6 +50,10 @@ import {
 } from '@/components/ui';
 import { ReviewCard, ReviewForm, type ReviewFormValue } from '@/components/reviews';
 import { MilestoneTracker } from '@/components/contracts/milestone-tracker';
+import { EscrowV3Workspace } from '@/components/contracts/escrow-v3-panel';
+import { ContractHeader } from '@/components/contracts/contract-header';
+import { isChainBacked, lifecycleKind } from '@/lib/contract-status';
+import { humanizeWalletError } from '@/lib/wallet-errors';
 import {
   SubmissionFilePicker,
   type AttachedFile,
@@ -171,6 +175,9 @@ export default function ContractDetailPage() {
   // hitting the API while it's still in_progress. The list query is enabled
   // for any state of a completed contract, so both parties always see what's
   // already there.
+  // Which escrow generation new contracts use (V3 once deployed on this chain).
+  const escrowConfig = api.escrow.config.useQuery(undefined, { staleTime: 5 * 60_000 });
+
   const canReviewQuery = api.review.canReview.useQuery(
     { contractId },
     { enabled: Boolean(contractId), retry: false },
@@ -501,9 +508,16 @@ export default function ContractDetailPage() {
   const counterpartyLabel = isClient ? 'Freelancer' : 'Client';
   const stage = stageIndex(status);
   const isOffTrack = status === 'cancelled' || status === 'disputed' || status === 'refunded';
+  // V3 contracts (and unfunded contracts once V3 is live) are driven by the
+  // on-chain state machine in <EscrowV3Panel>; the legacy progress bar and
+  // action buttons below only apply to v2 escrows.
+  const useV3 =
+    contract.escrowVersion === 'v3' ||
+    (status === 'created' && contract.onChainContractId == null && escrowConfig.data?.enabled === true);
+  const isLegacyFunded = contract.escrowVersion === 'v2' && contract.onChainContractId != null;
 
   // Action availability matrix
-  const canFund = isClient && status === 'created';
+  const canFund = isClient && status === 'created' && !useV3;
   const canCancel = (isClient || isFreelancer) && status === 'created';
   const canSubmit = isFreelancer && (status === 'in_progress' || status === 'revision_requested');
   const canApprove = isClient && status === 'submitted';
@@ -520,6 +534,294 @@ export default function ContractDetailPage() {
     contract.onChainContractId != null &&
     contract.autoReleaseAt != null &&
     new Date(contract.autoReleaseAt).getTime() <= Date.now();
+
+  // Modals shared by the legacy (v2) and escrow V3 layouts.
+  const cancelModal = (
+    <>
+      {/* ---- Cancel modal ---- */}
+      <Modal open={cancelOpen} onOpenChange={setCancelOpen}>
+        <ModalContent>
+          <ModalHeader>
+            <ModalTitle>Cancel this contract?</ModalTitle>
+            <ModalDescription>
+              This is only possible before escrow is funded. The job will be reopened so the client
+              can pick another freelancer.
+            </ModalDescription>
+          </ModalHeader>
+          <Textarea
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.target.value)}
+            rows={4}
+            placeholder="Tell the other party why."
+            className="resize-none"
+          />
+          <ModalFooter>
+            <Button variant="ghost" onClick={() => setCancelOpen(false)}>Keep contract</Button>
+            <Button
+              variant="destructive"
+              isLoading={cancelMut.isPending}
+              disabled={cancelReason.trim().length < 10}
+              onClick={() =>
+                cancelMut.mutate({
+                  contractId: contract.id,
+                  reason: cancelReason.trim(),
+                })
+              }
+            >
+              Cancel contract
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+    </>
+  );
+  const deadlineAndReviewModals = (
+    <>
+      {/* ---- Edit deadline modal (client, pre-funding only) ---- */}
+      <Modal open={deadlineOpen} onOpenChange={setDeadlineOpen}>
+        <ModalContent>
+          <ModalHeader>
+            <ModalTitle>Adjust delivery deadline</ModalTitle>
+            <ModalDescription>
+              The deadline gets locked into the on-chain escrow at funding time. After
+              funding it can't be changed without raising a dispute.
+            </ModalDescription>
+          </ModalHeader>
+          <div>
+            <Label htmlFor="deadline-input">New deadline</Label>
+            <Input
+              id="deadline-input"
+              type="date"
+              value={deadlineDraft}
+              min={new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10)}
+              onChange={(e) => setDeadlineDraft(e.target.value)}
+              className="mt-1.5"
+            />
+            <p className="mt-1.5 text-xs text-[var(--color-text-tertiary)]">
+              Pick any date up to one year out.
+            </p>
+          </div>
+          <ModalFooter>
+            <Button variant="ghost" onClick={() => setDeadlineOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              isLoading={updateTermsMut.isPending}
+              disabled={!deadlineDraft}
+              onClick={() => {
+                if (!deadlineDraft) return;
+                updateTermsMut.mutate({
+                  contractId: contract.id,
+                  deliveryDeadline: new Date(deadlineDraft),
+                });
+              }}
+            >
+              Save deadline
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* ---- Review modal ----
+          Larger size to fit the rating + breakdown + textarea comfortably.
+          The form clears its own state on success, but we mount with key on
+          the contract id so re-opening on a different contract starts fresh. */}
+      <Modal open={reviewOpen} onOpenChange={setReviewOpen}>
+        <ModalContent size="lg">
+          <ModalHeader>
+            <ModalTitle>Leave a review</ModalTitle>
+            <ModalDescription>
+              Share how this collaboration went. Your review is permanent and contributes
+              to {counterparty.displayName ?? counterparty.username ?? 'their'} WorkScore.
+            </ModalDescription>
+          </ModalHeader>
+          <ReviewForm
+            key={contract.id}
+            isSubmitting={reviewMut.isPending}
+            revieweeName={counterparty.displayName ?? counterparty.username ?? undefined}
+            onSubmit={async (value: ReviewFormValue) => {
+              await reviewMut.mutateAsync({
+                contractId: contract.id,
+                rating: value.rating,
+                comment: value.comment,
+                ratingBreakdown: value.ratingBreakdown,
+                isPublic: value.isPublic,
+              });
+            }}
+          />
+        </ModalContent>
+      </Modal>
+    </>
+  );
+
+  const openDeadlineEditor = () => {
+    const d = new Date(contract.deliveryDeadline);
+    setDeadlineDraft(d.toISOString().slice(0, 10));
+    setDeadlineOpen(true);
+  };
+
+  if (useV3) {
+    const reviewsList = reviewsQuery.data?.all ?? [];
+    return (
+      <div className="mx-auto w-full max-w-6xl">
+        <Link
+          href="/dashboard/contracts"
+          className="mb-5 inline-flex min-h-11 items-center gap-1.5 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+        >
+          <ArrowLeft className="size-4" aria-hidden />
+          All contracts
+        </Link>
+        <ContractHeader
+          title={contract.title}
+          reference={contract.onChainContractId != null ? `Escrow #${contract.onChainContractId}` : `Ref ${contract.id.slice(0, 8)}`}
+          network={contract.chainId === 8453 ? 'Base' : 'Base Sepolia'}
+          client={contract.client}
+          freelancer={contract.freelancer}
+          viewerRole={isClient ? 'client' : isFreelancer ? 'freelancer' : 'viewer'}
+          amount={String(contract.totalAmount)}
+          status={contract.syncIssue ? 'mismatch' : lifecycleKind(contract)}
+          statusSource={isChainBacked(contract) ? 'chain' : 'app'}
+        />
+
+        <div className="mt-8">
+          <EscrowV3Workspace
+            contract={contract}
+            isClient={isClient}
+            isFreelancer={isFreelancer}
+            onChanged={refreshAll}
+            preActions={
+              status === 'created' ? (
+                <>
+                  {isClient ? (
+                    <button type="button" onClick={openDeadlineEditor} className="min-h-11 underline decoration-[var(--color-border-strong)] underline-offset-4 hover:decoration-[var(--color-text-primary)]">
+                      Edit delivery deadline
+                    </button>
+                  ) : null}
+                  {canCancel ? (
+                    <button type="button" onClick={() => setCancelOpen(true)} className="min-h-11 text-[var(--color-error)] underline decoration-[var(--color-error)]/40 underline-offset-4">
+                      Cancel contract
+                    </button>
+                  ) : null}
+                </>
+              ) : null
+            }
+            mainAfter={
+              <>
+                {contract.submissionMessage ? (
+                  <section aria-labelledby="delivery-heading">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-[var(--color-border-default)] pb-3">
+                      <h2 id="delivery-heading" className="label-mono text-[var(--color-text-primary)]">Latest delivery</h2>
+                      {contract.submittedAt ? (
+                        <span className="font-mono text-[11px] text-[var(--color-text-tertiary)]">
+                          {new Date(contract.submittedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="mt-4 max-w-2xl whitespace-pre-wrap text-[15px] leading-relaxed text-[var(--color-text-primary)]">{contract.submissionMessage}</p>
+                    {contract.submissionFiles?.length ? (
+                      <ul className="mt-4 divide-y divide-[var(--color-border-default)] border-y border-[var(--color-border-default)]">
+                        {contract.submissionFiles.map((url, i) => (
+                          <li key={url}>
+                            <a href={url} target="_blank" rel="noreferrer" className="flex min-h-11 items-center justify-between gap-3 text-sm hover:text-[var(--color-brand-primary)]">
+                              <span className="inline-flex items-center gap-2">
+                                <FileText className="size-4 text-[var(--color-text-tertiary)]" aria-hidden />
+                                Attachment {i + 1}
+                              </span>
+                              <ExternalLink className="size-3.5 text-[var(--color-text-tertiary)]" aria-hidden />
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                    {contract.revisionReason && contract.onChainStatus === 'revision_requested' ? (
+                      <div className="mt-6 border-l-2 border-[var(--color-warning)] pl-4">
+                        <p className="label-mono">Revision {contract.onChainRevisionCount} · requested changes</p>
+                        <p className="mt-1 whitespace-pre-wrap text-[15px] text-[var(--color-text-primary)]">{contract.revisionReason}</p>
+                      </div>
+                    ) : null}
+                  </section>
+                ) : null}
+
+                {contract.disputeReason && (contract.onChainStatus === 'disputed' || contract.onChainStatus === 'resolved') ? (
+                  <section aria-labelledby="dispute-heading" className="border-l-2 border-[var(--color-error)] pl-4">
+                    <h2 id="dispute-heading" className="label-mono">Dispute statement</h2>
+                    <p className="mt-1 whitespace-pre-wrap text-[15px] text-[var(--color-text-primary)]">{contract.disputeReason}</p>
+                  </section>
+                ) : null}
+
+                {contract.milestones && contract.milestones.length > 0 ? (
+                  <MilestoneTracker
+                    contractId={contract.id}
+                    milestones={contract.milestones}
+                    isClient={isClient}
+                    isFreelancer={isFreelancer}
+                  />
+                ) : null}
+
+                {status === 'completed' ? (
+                  <section aria-labelledby="reviews-heading">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border-default)] pb-3">
+                      <h2 id="reviews-heading" className="label-mono text-[var(--color-text-primary)]">
+                        Reviews <span className="text-[var(--color-text-tertiary)]">· {reviewsList.length} of 2</span>
+                      </h2>
+                      {canReviewQuery.data?.canReview ? (
+                        <Button size="sm" onClick={() => setReviewOpen(true)}>
+                          Leave a review
+                        </Button>
+                      ) : null}
+                    </div>
+                    <div className="mt-4 space-y-4">
+                      {reviewsList.length > 0 ? (
+                        reviewsList.map((r) => <ReviewCard key={r.id} review={r} highlight={r.reviewerId === user?.id} />)
+                      ) : (
+                        <p className="text-sm text-[var(--color-text-secondary)]">
+                          No reviews yet. Each party can leave one; reviews are permanent and count toward WorkScore.
+                        </p>
+                      )}
+                    </div>
+                    <Link href={`/proof/${contract.id}`} target="_blank" className="mt-4 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold underline decoration-[var(--color-brand-primary)] decoration-2 underline-offset-[6px]">
+                      Public proof of this contract <ArrowRight className="size-4" aria-hidden />
+                    </Link>
+                  </section>
+                ) : null}
+              </>
+            }
+            asideAfter={
+              <section aria-labelledby="counterparty-heading">
+                <h2 id="counterparty-heading" className="label-mono border-b border-[var(--color-border-default)] pb-3 text-[var(--color-text-primary)]">
+                  {counterpartyLabel}
+                </h2>
+                <div className="flex items-center gap-3 py-3">
+                  <UserAvatar name={counterparty.displayName ?? counterparty.username ?? ''} imageUrl={counterparty.avatarUrl} size="md" />
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-[var(--color-text-primary)]">{counterparty.displayName ?? counterparty.username ?? 'User'}</p>
+                    {counterparty.username ? <p className="truncate font-mono text-xs text-[var(--color-text-tertiary)]">@{counterparty.username}</p> : null}
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-x-5 gap-y-1 border-t border-[var(--color-border-default)] pt-3 text-sm">
+                  <Link href={`/dashboard/messages?to=${counterparty.id}`} className="inline-flex min-h-11 items-center gap-1.5 underline decoration-[var(--color-border-strong)] underline-offset-4 hover:decoration-[var(--color-text-primary)]">
+                    <MessageSquare className="size-4" aria-hidden /> Message
+                  </Link>
+                  {counterparty.username ? (
+                    <Link href={`/u/${counterparty.username}`} className="inline-flex min-h-11 items-center underline decoration-[var(--color-border-strong)] underline-offset-4 hover:decoration-[var(--color-text-primary)]">
+                      Profile
+                    </Link>
+                  ) : null}
+                  <Link href={`/jobs/${contract.job.slug}`} className="inline-flex min-h-11 items-center underline decoration-[var(--color-border-strong)] underline-offset-4 hover:decoration-[var(--color-text-primary)]">
+                    Original job
+                  </Link>
+                </div>
+              </section>
+            }
+          />
+        </div>
+
+        {cancelModal}
+        {deadlineAndReviewModals}
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto w-full max-w-5xl">
@@ -585,8 +887,15 @@ export default function ContractDetailPage() {
         </div>
       </motion.div>
 
-      {/* Timeline */}
-      {!isOffTrack ? (
+      {isLegacyFunded ? (
+        <p className="mt-6 border-l-2 border-[var(--color-warning)] pl-4 text-sm text-[var(--color-text-secondary)]">
+          Legacy escrow (ForjEscrow v2). Progress below is tracked by Forj only; the on-chain escrow
+          stays <span className="font-semibold text-[var(--color-text-primary)]">Funded</span> until the client releases it.
+        </p>
+      ) : null}
+
+      {/* Timeline (legacy v2) */}
+      {!useV3 && !isOffTrack ? (
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -782,8 +1091,8 @@ export default function ContractDetailPage() {
             </motion.div>
           ) : null}
 
-          {/* Action panel */}
-          {(canFund || canSubmit || canApprove || canRequestRevision || canCancel || canDispute) ? (
+          {/* Action panel (legacy v2) */}
+          {(canFund || canCancel || (!useV3 && (canSubmit || canApprove || canRequestRevision || canDispute))) ? (
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1160,41 +1469,7 @@ export default function ContractDetailPage() {
         </ModalContent>
       </Modal>
 
-      {/* ---- Cancel modal ---- */}
-      <Modal open={cancelOpen} onOpenChange={setCancelOpen}>
-        <ModalContent>
-          <ModalHeader>
-            <ModalTitle>Cancel this contract?</ModalTitle>
-            <ModalDescription>
-              This is only possible before escrow is funded. The job will be reopened so the client
-              can pick another freelancer.
-            </ModalDescription>
-          </ModalHeader>
-          <Textarea
-            value={cancelReason}
-            onChange={(e) => setCancelReason(e.target.value)}
-            rows={4}
-            placeholder="Tell the other party why."
-            className="resize-none"
-          />
-          <ModalFooter>
-            <Button variant="ghost" onClick={() => setCancelOpen(false)}>Keep contract</Button>
-            <Button
-              variant="destructive"
-              isLoading={cancelMut.isPending}
-              disabled={cancelReason.trim().length < 10}
-              onClick={() =>
-                cancelMut.mutate({
-                  contractId: contract.id,
-                  reason: cancelReason.trim(),
-                })
-              }
-            >
-              Cancel contract
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      {cancelModal}
 
       {/* ---- Dispute modal ---- */}
       <Modal open={disputeOpen} onOpenChange={setDisputeOpen}>
@@ -1232,80 +1507,7 @@ export default function ContractDetailPage() {
         </ModalContent>
       </Modal>
 
-      {/* ---- Edit deadline modal (client, pre-funding only) ---- */}
-      <Modal open={deadlineOpen} onOpenChange={setDeadlineOpen}>
-        <ModalContent>
-          <ModalHeader>
-            <ModalTitle>Adjust delivery deadline</ModalTitle>
-            <ModalDescription>
-              The deadline gets locked into the on-chain escrow at funding time. After
-              funding it can't be changed without raising a dispute.
-            </ModalDescription>
-          </ModalHeader>
-          <div>
-            <Label htmlFor="deadline-input">New deadline</Label>
-            <Input
-              id="deadline-input"
-              type="date"
-              value={deadlineDraft}
-              min={new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10)}
-              onChange={(e) => setDeadlineDraft(e.target.value)}
-              className="mt-1.5"
-            />
-            <p className="mt-1.5 text-xs text-[var(--color-text-tertiary)]">
-              Pick any date up to one year out.
-            </p>
-          </div>
-          <ModalFooter>
-            <Button variant="ghost" onClick={() => setDeadlineOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              isLoading={updateTermsMut.isPending}
-              disabled={!deadlineDraft}
-              onClick={() => {
-                if (!deadlineDraft) return;
-                updateTermsMut.mutate({
-                  contractId: contract.id,
-                  deliveryDeadline: new Date(deadlineDraft),
-                });
-              }}
-            >
-              Save deadline
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
-
-      {/* ---- Review modal ----
-          Larger size to fit the rating + breakdown + textarea comfortably.
-          The form clears its own state on success, but we mount with key on
-          the contract id so re-opening on a different contract starts fresh. */}
-      <Modal open={reviewOpen} onOpenChange={setReviewOpen}>
-        <ModalContent size="lg">
-          <ModalHeader>
-            <ModalTitle>Leave a review</ModalTitle>
-            <ModalDescription>
-              Share how this collaboration went. Your review is permanent and contributes
-              to {counterparty.displayName ?? counterparty.username ?? 'their'} WorkScore.
-            </ModalDescription>
-          </ModalHeader>
-          <ReviewForm
-            key={contract.id}
-            isSubmitting={reviewMut.isPending}
-            revieweeName={counterparty.displayName ?? counterparty.username ?? undefined}
-            onSubmit={async (value: ReviewFormValue) => {
-              await reviewMut.mutateAsync({
-                contractId: contract.id,
-                rating: value.rating,
-                comment: value.comment,
-                ratingBreakdown: value.ratingBreakdown,
-                isPublic: value.isPublic,
-              });
-            }}
-          />
-        </ModalContent>
-      </Modal>
+      {deadlineAndReviewModals}
     </div>
   );
 }
@@ -1315,45 +1517,6 @@ export default function ContractDetailPage() {
  * Keeps the toast text actionable rather than showing "user rejected
  * action: User denied transaction signature" raw to the user.
  */
-function humanizeWalletError(raw: string): string {
-  const m = raw.toLowerCase();
-  if (m.includes('user rejected') || m.includes('user denied')) {
-    return 'You cancelled the wallet popup. Click the button again when ready.';
-  }
-  // Decode the most common revert: USDC.transferFrom failing because the
-  // smart wallet doesn't hold enough USDC for amount + 5% client fee.
-  // The raw error from viem/Pimlico is hex-encoded so users see a wall
-  // of zeros — translate to a sentence that points them at the fix.
-  if (
-    m.includes('transfer amount exceeds balance') ||
-    m.includes('45524332303a207472616e7366657220616d6f756e74')
-  ) {
-    return "Not enough USDC in your smart wallet. Top up at Settings → Top up your wallet, then retry.";
-  }
-  if (m.includes('insufficient funds') || m.includes('exceeds the balance')) {
-    return "Wallet doesn't have enough ETH to pay for gas. With smart wallets, Forj sponsors gas — restart the dev server or contact support.";
-  }
-  if (m.includes('insufficient allowance')) {
-    return "USDC approval missing. Try Fund again — it will re-approve the right amount.";
-  }
-  if (m.includes('nonce') || m.includes('replacement')) {
-    return 'Wallet has a stuck transaction. In MetaMask: Settings → Advanced → Reset account, then retry.';
-  }
-  if (m.includes('chain') || m.includes('network')) {
-    return 'Wrong network. Switch your wallet to Base (or Base Sepolia for testnet) and retry.';
-  }
-  if (m.includes('invalidstatus') || m.includes('notclient') || m.includes('notfreelancer')) {
-    return 'Action not allowed at this contract stage. Refresh the page to see the current state.';
-  }
-  if (m.includes('invaliddeadline')) {
-    return "The delivery deadline is in the past. Edit it from the contract page, then retry.";
-  }
-  if (m.includes('reverted')) {
-    return "On-chain transaction reverted. The most common cause is insufficient USDC — top up at Settings, then retry.";
-  }
-  return raw.length > 200 ? 'Wallet action failed. See browser console for the technical details.' : raw;
-}
-
 function Stat({
   label,
   value,

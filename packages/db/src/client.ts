@@ -1,6 +1,9 @@
 import { Pool, neonConfig } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-serverless';
+import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres';
+import pg from 'pg';
 import ws from 'ws';
+import { isPlainPostgres } from './connection';
 import * as schema from './schema';
 
 /**
@@ -45,12 +48,30 @@ if (!databaseUrl) {
   throw new Error('DATABASE_URL is not set');
 }
 
-const pool = new Pool({ connectionString: databaseUrl });
-
-export const db = drizzle(pool, {
+const options = {
   schema,
-  casing: 'snake_case',
+  casing: 'snake_case' as const,
   logger: process.env.NODE_ENV === 'development',
-});
+};
+
+function createNeonDb(url: string) {
+  return drizzle(new Pool({ connectionString: url }), options);
+}
+
+/**
+ * Plain Postgres (local Docker, CI) speaks the normal wire protocol, which
+ * the Neon WebSocket driver can't reach. Those hosts use node-postgres.
+ * Both drivers expose the same Drizzle Postgres API, so the rest of the
+ * codebase is typed against the Neon one.
+ */
+function createNodePgDb(url: string): ReturnType<typeof createNeonDb> {
+  return drizzlePg(new pg.Pool({ connectionString: url }), options) as unknown as ReturnType<
+    typeof createNeonDb
+  >;
+}
+
+export const db = isPlainPostgres(databaseUrl)
+  ? createNodePgDb(databaseUrl)
+  : createNeonDb(databaseUrl);
 
 export type Database = typeof db;

@@ -1,7 +1,7 @@
 import { TRPCError } from '@trpc/server';
-import { DEFAULT_FEE_BPS } from '@forj/contracts';
 import { and, contracts, desc, eq, jobs, ne, proposals, sql, users } from '@forj/db';
 import { z } from 'zod';
+import { splitContractAmount } from '../lib/fees';
 import { isAllowedFileUrl } from '../lib/file-host';
 import { checkRateLimit, RATE_LIMITS } from '../middleware/rate-limit';
 import { notify } from '../services/notifications';
@@ -81,7 +81,20 @@ export const proposalRouter = createTRPCRouter({
         where: eq(proposals.id, input.id),
         with: {
           job: true,
-          freelancer: true,
+          // Projected: the job owner must not receive the applicant's
+          // email, privyId or notification preferences.
+          freelancer: {
+            columns: {
+              id: true,
+              username: true,
+              displayName: true,
+              avatarUrl: true,
+              walletAddress: true,
+              workScore: true,
+              badgeTier: true,
+              totalJobsCompleted: true,
+            },
+          },
         },
       });
       if (!proposal) throw new TRPCError({ code: 'NOT_FOUND' });
@@ -232,15 +245,10 @@ export const proposalRouter = createTRPCRouter({
         });
       }
 
-      // Contract financials. Single source of truth: `DEFAULT_FEE_BPS` from
-      // `@forj/contracts` — same constant the on-chain registry was
-      // deployed with. Storing the off-chain platformFee as a different rate
-      // would cause user-visible drift between "what we said you'd get" and
-      // "what the contract actually paid out".
-      const total = Number(proposal.bidAmount);
-      const feeRate = DEFAULT_FEE_BPS / 10_000; // 250 bps → 0.025
-      const platformFee = Math.round(total * feeRate * 100) / 100;
-      const freelancerAmount = Math.round((total - platformFee) * 100) / 100;
+      // Contract financials mirror the on-chain split fee exactly (integer
+      // base-unit math) — see `splitContractAmount`.
+      const total = proposal.bidAmount;
+      const { platformFee, freelancerAmount } = splitContractAmount(total);
       // Delivery deadline: derived from estimatedDuration not trivial; default to 30 days
       // for now. The client can re-negotiate before funding the escrow.
       const deliveryDeadline = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
@@ -325,9 +333,9 @@ export const proposalRouter = createTRPCRouter({
             freelancerId: proposal.freelancerId,
             proposalId: proposal.id,
             title: proposal.job.title,
-            totalAmount: total.toString(),
-            platformFee: platformFee.toString(),
-            freelancerAmount: freelancerAmount.toString(),
+            totalAmount: total,
+            platformFee,
+            freelancerAmount,
             paymentMethod: 'crypto',
             deliveryDeadline,
             milestones: initialMilestones,

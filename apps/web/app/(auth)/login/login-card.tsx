@@ -91,11 +91,11 @@ export function LoginCard({ mode = 'signin' }: LoginCardProps) {
       transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
       className="w-full max-w-[440px]"
     >
-      <div className="rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-background-secondary)]/80 p-7 backdrop-blur-xl shadow-2xl shadow-black/30 sm:p-8">
+      <div className="rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-background-secondary)]/80 p-7 sm:p-8">
         {/* Network chip */}
         <div className="flex justify-center">
           <span className="inline-flex items-center gap-2 rounded-[var(--radius-full)] border border-[var(--color-border-brand)] bg-[var(--color-glow-brand)] px-3 py-1 text-xs font-medium text-[var(--color-brand-primary)]">
-            <span className="inline-block size-1.5 rounded-full bg-[var(--color-brand-primary)] shadow-[0_0_6px_var(--color-brand-primary)]" />
+            <span className="inline-block size-1.5 rounded-full bg-[var(--color-brand-primary)]" />
             Base Network
           </span>
         </div>
@@ -207,7 +207,7 @@ function MethodButton({
         'focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-primary)]',
         'disabled:cursor-not-allowed disabled:opacity-50',
         primary
-          ? 'border-[var(--color-brand-primary)]/60 bg-gradient-to-r from-[var(--color-brand-primary)]/15 to-[var(--color-brand-secondary)]/10 hover:border-[var(--color-brand-primary)] hover:from-[var(--color-brand-primary)]/25 hover:to-[var(--color-brand-secondary)]/15 hover:shadow-[0_0_20px_var(--color-glow-brand-strong)]'
+          ? 'border-[var(--color-brand-primary)]/60 bg-[var(--color-glow-brand)] hover:border-[var(--color-brand-primary)] hover:from-[var(--color-brand-primary)]/25 hover:to-[var(--color-brand-secondary)]/15'
           : 'border-[var(--color-border-default)] bg-[var(--color-background-tertiary)]/50 hover:border-[var(--color-border-strong)] hover:bg-[var(--color-background-tertiary)]',
       )}
     >

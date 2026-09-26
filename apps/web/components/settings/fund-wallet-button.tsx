@@ -1,5 +1,6 @@
 'use client';
 
+import { APP_CHAIN_ID } from '@/lib/chain';
 import { useFundWallet } from '@privy-io/react-auth';
 import { CreditCard, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
@@ -45,7 +46,7 @@ export function FundWalletButton({
   // `useChainId()` because the user's wallet might be on a different
   // chain (e.g. a "wrong network" state) — what we want here is the
   // chain Forj itself runs on, not the wallet's current selection.
-  const envChainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? base.id);
+  const envChainId = APP_CHAIN_ID;
   const isTestnet = envChainId === baseSepolia.id;
 
   if (!walletAddress) return null;

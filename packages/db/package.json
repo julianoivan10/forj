@@ -13,6 +13,9 @@
   "scripts": {
     "generate": "drizzle-kit generate",
     "migrate": "tsx src/migrate.ts",
+    "migrate:status": "tsx src/migrate.ts status",
+    "migrate:apply": "tsx src/migrate.ts apply",
+    "//push": "Local prototyping only. Production schema changes go through generate + migrate:apply.",
     "push": "drizzle-kit push",
     "studio": "drizzle-kit studio",
     "typecheck": "tsc --noEmit",
@@ -23,12 +26,14 @@
     "@types/ws": "^8.18.1",
     "drizzle-orm": "^0.38.3",
     "drizzle-zod": "^0.6.1",
+    "pg": "^8.23.0",
     "ws": "^8.20.1",
     "zod": "^3.24.1"
   },
   "devDependencies": {
     "@forj/tsconfig": "workspace:*",
     "@types/node": "^22.10.5",
+    "@types/pg": "^8.15.6",
     "dotenv": "^16.4.7",
     "drizzle-kit": "^0.30.1",
     "tsx": "^4.19.2",

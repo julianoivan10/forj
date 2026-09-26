@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next';
 import { createCaller, createTRPCContext } from '@forj/api';
+import { SITE_URL } from '@/lib/constants';
 
 /**
  * Auto-generated sitemap. Includes:
@@ -13,10 +14,12 @@ import { createCaller, createTRPCContext } from '@forj/api';
  * inbound SEO intent, we can extend this to include them.
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://forj.app';
+  const baseUrl = SITE_URL;
 
   const staticPages: MetadataRoute.Sitemap = [
-    { url: `${baseUrl}/`, changeFrequency: 'weekly', priority: 1 },
+    { url: baseUrl, changeFrequency: 'weekly', priority: 1 },
+    { url: `${baseUrl}/jobs`, changeFrequency: 'daily', priority: 0.9 },
+    { url: `${baseUrl}/services`, changeFrequency: 'daily', priority: 0.8 },
     { url: `${baseUrl}/how-it-works`, changeFrequency: 'monthly', priority: 0.8 },
     { url: `${baseUrl}/about`, changeFrequency: 'monthly', priority: 0.6 },
     { url: `${baseUrl}/blog`, changeFrequency: 'weekly', priority: 0.9 },

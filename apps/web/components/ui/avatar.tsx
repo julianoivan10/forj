@@ -20,7 +20,7 @@ export const Avatar = React.forwardRef<
     <AvatarPrimitive.Root
       ref={ref}
       className={cn(
-        'relative flex shrink-0 overflow-hidden rounded-full',
+        'relative flex shrink-0 overflow-hidden rounded-[var(--radius-sm)]',
         'border border-[var(--color-border-default)]',
         sizeClasses[size],
         className,
@@ -50,8 +50,8 @@ export const AvatarFallback = React.forwardRef<
   <AvatarPrimitive.Fallback
     ref={ref}
     className={cn(
-      'flex h-full w-full items-center justify-center rounded-full font-semibold',
-      'bg-gradient-to-br from-[var(--color-brand-secondary)]/30 to-[var(--color-brand-primary)]/30',
+      'flex h-full w-full items-center justify-center rounded-[var(--radius-sm)] font-semibold',
+      'bg-[var(--color-background-tertiary)] text-[var(--color-text-primary)]',
       'text-[var(--color-text-primary)]',
       className,
     )}

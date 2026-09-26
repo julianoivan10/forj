@@ -102,7 +102,7 @@ export function ServiceDetail({ slug }: { slug: string }) {
         >
           {/* Header card */}
           <div className="overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-background-secondary)]">
-            <div className="aspect-[16/9] w-full bg-gradient-to-br from-[var(--color-background-tertiary)] to-[var(--color-background-elevated)]">
+            <div className="aspect-[16/9] w-full bg-[var(--color-glow-brand)]">
               {service.coverImageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img

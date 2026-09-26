@@ -5,8 +5,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   return (
     <div className="relative flex min-h-dvh flex-col">
       {/* Background effects */}
-      <div className="pointer-events-none absolute inset-0 -z-10">
-        <div className="absolute top-0 left-1/2 h-[500px] w-[800px] -translate-x-1/2 rounded-full bg-gradient-to-br from-[var(--color-brand-primary)]/8 via-[var(--color-brand-secondary)]/6 to-transparent blur-3xl" />
+      <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+        <div className="absolute top-0 left-1/2 h-[500px] w-[800px] -translate-x-1/2 rounded-full bg-[var(--color-glow-brand)] blur-3xl" />
         <div className="dot-grid absolute inset-0 opacity-20" />
       </div>
 
@@ -15,7 +15,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <Link href="/" className="flex items-center gap-2.5" aria-label="Forj Home">
           <Image src="/logo.svg" alt="" width={32} height={32} className="size-8" />
           <span className="font-display text-xl font-bold tracking-tight text-[var(--color-text-primary)]">
-            For<span className="text-[var(--color-brand-primary)]">j</span>
+            Forj
           </span>
         </Link>
       </header>

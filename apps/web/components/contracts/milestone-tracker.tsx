@@ -118,7 +118,7 @@ export function MilestoneTracker({
       {/* Progress bar */}
       <div className="mt-4 h-1 overflow-hidden rounded-full bg-[var(--color-background-tertiary)]">
         <motion.div
-          className="h-full rounded-full bg-gradient-to-r from-[var(--color-brand-primary)] to-[var(--color-brand-accent)]"
+          className="h-full rounded-full bg-[var(--color-glow-brand)]"
           animate={{ width: `${progressPct}%` }}
           transition={{ duration: 0.4 }}
         />

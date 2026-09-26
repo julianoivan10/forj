@@ -67,7 +67,7 @@ export function EmailLayout({ preview, children }: EmailLayoutProps) {
                     letterSpacing: '-0.03em',
                   }}
                 >
-                  WorkChain
+                  Forj
                 </Text>
               </Link>
             </Section>

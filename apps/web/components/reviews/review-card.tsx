@@ -68,10 +68,9 @@ export function ReviewCard({ review, highlight = false, className }: ReviewCardP
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       className={cn(
-        'rounded-[var(--radius-xl)] border bg-[var(--color-background-secondary)] p-5',
-        highlight
-          ? 'border-[var(--color-border-brand)] shadow-[0_0_20px_var(--color-glow-brand)]'
-          : 'border-[var(--color-border-default)]',
+        // A quoted entry, not a card: a left rule (cobalt for your own review).
+        'border-l-2 py-1 pl-5',
+        highlight ? 'border-[var(--color-brand-primary)]' : 'border-[var(--color-border-strong)]',
         className,
       )}
     >
@@ -79,7 +78,7 @@ export function ReviewCard({ review, highlight = false, className }: ReviewCardP
         {reviewer?.username ? (
           <Link
             href={`/u/${reviewer.username}`}
-            className="shrink-0 rounded-full transition-opacity hover:opacity-90"
+            className="shrink-0 transition-opacity hover:opacity-90"
           >
             {avatar}
           </Link>
@@ -101,7 +100,7 @@ export function ReviewCard({ review, highlight = false, className }: ReviewCardP
               </span>
             )}
             {highlight ? (
-              <span className="rounded-full bg-[var(--color-brand-primary)]/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-brand-primary)]">
+              <span className="border border-[var(--color-border-brand)] px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.06em] text-[var(--color-brand-primary)]">
                 Your review
               </span>
             ) : null}
@@ -118,7 +117,7 @@ export function ReviewCard({ review, highlight = false, className }: ReviewCardP
         </div>
       </div>
 
-      <p className="mt-4 whitespace-pre-wrap text-sm leading-relaxed text-[var(--color-text-secondary)]">
+      <p className="mt-3 whitespace-pre-wrap text-[15px] leading-relaxed text-[var(--color-text-primary)]">
         {review.comment}
       </p>
 

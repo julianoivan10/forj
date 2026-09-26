@@ -5,6 +5,9 @@ import {
   contracts,
   desc,
   eq,
+  escrowTransactions,
+  indexerCursors,
+  isNotNull,
   isNull,
   users,
 } from '@forj/db';
@@ -15,12 +18,19 @@ import {
 } from '../services/escrow';
 import { notify } from '../services/notifications';
 import { adminProcedure, createTRPCRouter } from '../trpc';
+import {
+  confirmEscrowTransaction,
+  getEscrowV3Config,
+  reconcileEscrows,
+  syncEscrowLogs,
+} from '../escrow-v3';
+import { log } from '../lib/log';
 
 /**
  * Admin / arbiter router.
  *
  * Authorization model:
- *   The on-chain `WorkChainEscrow.resolveDispute()` is `onlyOwner` — only
+ *   The on-chain `ForjEscrow.resolveDispute()` is `onlyOwner` — only
  *   the address registered as the registry's owner (a platform multisig)
  *   can mutate funds. We piggy-back on that: the backend doesn't keep its
  *   own admin allowlist. Instead, `recordResolution` accepts an arbitrary
@@ -41,6 +51,122 @@ import { adminProcedure, createTRPCRouter } from '../trpc';
 const txHashRe = /^0x[a-fA-F0-9]{64}$/;
 
 export const adminRouter = createTRPCRouter({
+  /**
+   * Record a V3 arbiter transaction (`resolveDispute` sent from the arbiter
+   * wallet or Safe). Like every V3 action it is only pending until the
+   * `DisputeResolved` event for this escrow is decoded from the chain.
+   */
+  recordArbiterTransaction: adminProcedure
+    .input(
+      z.object({
+        contractId: z.string().uuid(),
+        txHash: z.string().regex(txHashRe, 'Invalid tx hash').transform((h) => h.toLowerCase()),
+        chainId: z.number().int().positive(),
+        reason: z.string().min(20).max(2000),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      let cfg;
+      try {
+        cfg = getEscrowV3Config();
+      } catch (err) {
+        throw new TRPCError({ code: 'PRECONDITION_FAILED', message: (err as Error).message });
+      }
+      if (input.chainId !== cfg.chainId) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: `Forj settles on chain ${cfg.chainId}.` });
+      }
+      const contract = await ctx.db.query.contracts.findFirst({
+        where: eq(contracts.id, input.contractId),
+        columns: { id: true, escrowVersion: true, onChainStatus: true, onChainContractId: true, clientId: true },
+      });
+      if (!contract) throw new TRPCError({ code: 'NOT_FOUND' });
+      if (contract.escrowVersion !== 'v3' || contract.onChainStatus !== 'disputed') {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'This escrow is not in an on-chain dispute.' });
+      }
+      const [row] = await ctx.db.transaction(async (tx) => {
+        await tx.insert(adminAuditLog).values({
+          adminUserId: ctx.user.id,
+          targetUserId: contract.clientId,
+          action: 'escrow_resolve_dispute',
+          reason: input.reason,
+          details: { contractId: contract.id, txHash: input.txHash, escrowId: contract.onChainContractId },
+        });
+        return tx
+          .insert(escrowTransactions)
+          .values({
+            contractId: contract.id,
+            chainId: cfg.chainId,
+            escrowAddress: cfg.escrowAddress.toLowerCase(),
+            action: 'resolve_dispute',
+            txHash: input.txHash,
+            initiatedBy: ctx.user.id,
+            metadata: { reason: input.reason },
+          })
+          .returning();
+      });
+      if (!row) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+      log('warn', 'admin.escrow_resolution_recorded', { adminId: ctx.user.id, contractId: contract.id, txHash: input.txHash });
+      const outcome = await confirmEscrowTransaction(cfg, row, ctx.db);
+      return { transactionId: row.id, outcome };
+    }),
+
+  /** Sync health for the admin dashboard: indexer position, pending and failed actions, drift. */
+  escrowSyncStatus: adminProcedure.query(async ({ ctx }) => {
+    let cfg;
+    try {
+      cfg = getEscrowV3Config();
+    } catch (err) {
+      return { enabled: false as const, reason: (err as Error).message };
+    }
+    const key = `${cfg.chainId}:${cfg.escrowAddress.toLowerCase()}`;
+    const [cursor, pending, failed, drift] = await Promise.all([
+      ctx.db.query.indexerCursors.findFirst({ where: eq(indexerCursors.key, key) }),
+      ctx.db.query.escrowTransactions.findMany({
+        where: eq(escrowTransactions.status, 'pending'),
+        columns: { id: true, contractId: true, action: true, txHash: true, createdAt: true, attempts: true },
+        limit: 50,
+      }),
+      ctx.db.query.escrowTransactions.findMany({
+        where: eq(escrowTransactions.status, 'failed'),
+        orderBy: [desc(escrowTransactions.createdAt)],
+        columns: { id: true, contractId: true, action: true, txHash: true, failureReason: true, createdAt: true },
+        limit: 20,
+      }),
+      ctx.db.query.contracts.findMany({
+        where: isNotNull(contracts.syncIssue),
+        columns: { id: true, title: true, syncIssue: true, onChainStatus: true, status: true, lastReconciledAt: true },
+        limit: 50,
+      }),
+    ]);
+    return {
+      enabled: true as const,
+      chainId: cfg.chainId,
+      escrowAddress: cfg.escrowAddress,
+      lastProcessedBlock: cursor?.lastProcessedBlock?.toString() ?? null,
+      indexerUpdatedAt: cursor?.updatedAt ?? null,
+      pending,
+      failed,
+      drift,
+    };
+  }),
+
+  /** Run one indexer + reconciliation pass now (the cron does this every few minutes). */
+  runEscrowSync: adminProcedure.mutation(async ({ ctx }) => {
+    let cfg;
+    try {
+      cfg = getEscrowV3Config();
+    } catch (err) {
+      throw new TRPCError({ code: 'PRECONDITION_FAILED', message: (err as Error).message });
+    }
+    const indexed = await syncEscrowLogs(cfg, {}, ctx.db);
+    const reconciled = await reconcileEscrows(cfg, {}, ctx.db);
+    log('info', 'admin.escrow_sync_run', { adminId: ctx.user.id, indexed, mismatches: reconciled.mismatches.length });
+    return {
+      indexed: { ...indexed, lastProcessedBlock: indexed.lastProcessedBlock.toString() },
+      reconciled,
+    };
+  }),
+
   /**
    * Returns every disputed contract platform-wide. Order: oldest dispute
    * first so the arbiter's queue defaults to FIFO.
@@ -84,6 +210,12 @@ export const adminRouter = createTRPCRouter({
         where: eq(contracts.id, input.contractId),
       });
       if (!contract) throw new TRPCError({ code: 'NOT_FOUND' });
+      if (contract.escrowVersion === 'v3') {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'V3 escrows are settled from confirmed chain events. Use recordArbiterTransaction.',
+        });
+      }
       if (contract.status !== 'disputed') {
         throw new TRPCError({
           code: 'BAD_REQUEST',

@@ -1,18 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   Save,
-  User,
-  Shield,
-  Bell,
   Download,
-  Trash2,
-  AlertTriangle,
-  Loader2,
-  Lock,
   Plus,
   X,
   Link as LinkIcon,
@@ -21,21 +14,10 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
+import { NetworkPanel } from '@/components/settings/network-panel';
 import { api } from '@/lib/trpc/client';
 import { SecurityTab } from '@/components/settings/security-tab';
-import {
-  Button,
-  Input,
-  Textarea,
-  Label,
-  Badge,
-  Modal,
-  ModalContent,
-  ModalHeader,
-  ModalTitle,
-  ModalDescription,
-  ModalFooter,
-} from '@/components/ui';
+import { Button, Input, Textarea, Label, Badge } from '@/components/ui';
 import { AvatarUpload } from '@/components/settings/avatar-upload';
 import { WalletCard } from '@/components/settings/wallet-card';
 import { DepositCard } from '@/components/settings/deposit-card';
@@ -59,76 +41,97 @@ const NOTIFICATION_TYPES = [
   { key: 'system', label: 'System', desc: 'Platform updates and announcements' },
 ] as const;
 
+type SettingsTab = 'profile' | 'account' | 'wallet' | 'notifications' | 'security' | 'network';
+
+const SECTIONS: Array<{ key: SettingsTab; label: string; hint: string }> = [
+  { key: 'profile', label: 'Profile', hint: 'How you appear to clients and freelancers' },
+  { key: 'account', label: 'Account', hint: 'Identity details and your data' },
+  { key: 'wallet', label: 'Wallet', hint: 'Payout address, deposits and withdrawals' },
+  { key: 'notifications', label: 'Notifications', hint: 'What reaches you, in-app and by email' },
+  { key: 'security', label: 'Security', hint: 'Sign-in methods, recovery, deletion' },
+  { key: 'network', label: 'Network', hint: 'Where your escrow and payouts live' },
+];
+
+const isTab = (t: string | null): t is SettingsTab => SECTIONS.some((x) => x.key === t);
+
 export default function DashboardSettingsPage() {
   const { user, refetchUser } = useAuth();
   const searchParams = useSearchParams();
-  // Initial tab: respect `?tab=<slug>` so deep links (e.g. the
-  // dashboard recovery nudge → /dashboard/settings?tab=security)
-  // land on the right pane. Falls back to Profile.
-  const initialTab = (() => {
+  // `?tab=<slug>` deep links (e.g. the recovery nudge → ?tab=security).
+  const [tab, setTab] = useState<SettingsTab>(() => {
     const t = searchParams.get('tab');
-    if (t === 'account' || t === 'security' || t === 'notifications') return t;
-    return 'profile' as const;
-  })();
-  const [tab, setTab] = useState<'profile' | 'account' | 'security' | 'notifications'>(initialTab);
+    return isTab(t) ? t : 'profile';
+  });
 
-  // If the URL `?tab=` changes after mount (back/forward nav), sync
-  // — but don't fight the user clicking tab buttons (those don't
-  // mutate the URL). Effect dependency is just the searchParams
-  // string, not `tab` state.
   useEffect(() => {
     const t = searchParams.get('tab');
-    if (t === 'profile' || t === 'account' || t === 'security' || t === 'notifications') {
-      setTab(t);
-    }
+    if (isTab(t)) setTab(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
   if (!user) return null;
+  const current = SECTIONS.find((x) => x.key === tab)!;
 
   return (
-    <div className="mx-auto max-w-4xl">
-      <h1 className="font-display text-2xl font-extrabold tracking-tight text-[var(--color-text-primary)] sm:text-3xl">
-        Settings
-      </h1>
-      <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-        Manage your profile, account, and preferences.
-      </p>
+    <div className="mx-auto max-w-6xl">
+      <header className="border-b border-[var(--color-rule)] pb-5">
+        <p className="label-mono">Settings</p>
+        <h1 className="mt-2 font-display text-3xl font-semibold tracking-[-0.03em] text-[var(--color-text-primary)] sm:text-4xl">
+          Your account, wallet and preferences.
+        </h1>
+      </header>
 
-      {/* Tab bar — horizontally scrollable on mobile so the three tabs
-          don't bleed off the right edge of a 375px viewport. The
-          `scrollbar-thin` would be nice but Tailwind 4 doesn't ship it
-          by default; the native scrollbar fades in only when needed. */}
-      <div className="mt-6 -mx-4 overflow-x-auto border-b border-[var(--color-border-default)] sm:mx-0">
-        <div className="flex w-max min-w-full gap-1 px-4 sm:px-0">
-          {([
-            { key: 'profile', label: 'Profile', icon: User },
-            { key: 'account', label: 'Account', icon: Shield },
-            { key: 'security', label: 'Security', icon: Lock },
-            { key: 'notifications', label: 'Notifications', icon: Bell },
-          ] as const).map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={cn(
-                'flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-3 text-sm font-medium transition-colors',
-                tab === t.key
-                  ? 'border-[var(--color-brand-primary)] text-[var(--color-brand-primary)]'
-                  : 'border-transparent text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]',
-              )}
-            >
-              <t.icon className="size-4" />
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      <div className="mt-6 grid gap-8 lg:mt-10 lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-14">
+        {/* Section index: a vertical list on desktop, a scrollable strip on mobile. */}
+        <nav aria-label="Settings sections" className="-mx-4 overflow-x-auto border-b border-[var(--color-border-default)] px-4 lg:mx-0 lg:overflow-visible lg:border-b-0 lg:px-0">
+          <ul className="flex w-max gap-5 lg:w-auto lg:flex-col lg:gap-0 lg:border-t lg:border-[var(--color-border-default)]">
+            {SECTIONS.map((x, i) => (
+              <li key={x.key} className="lg:border-b lg:border-[var(--color-border-default)]">
+                <button
+                  type="button"
+                  onClick={() => setTab(x.key)}
+                  aria-current={tab === x.key ? 'page' : undefined}
+                  className={cn(
+                    'relative -mb-px flex min-h-11 items-center gap-3 whitespace-nowrap border-b-2 text-sm transition-colors lg:mb-0 lg:w-full lg:border-b-0 lg:py-3 lg:pl-4',
+                    tab === x.key
+                      ? 'border-[var(--color-brand-primary)] font-semibold text-[var(--color-text-primary)]'
+                      : 'border-transparent text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]',
+                  )}
+                >
+                  <span
+                    aria-hidden
+                    className={cn('absolute inset-y-2 left-0 hidden w-[2px] lg:block', tab === x.key && 'bg-[var(--color-brand-primary)]')}
+                  />
+                  <span className="hidden font-mono text-[11px] text-[var(--color-text-tertiary)] lg:inline">
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
+                  {x.label}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </nav>
 
-      <div className="mt-6">
-        {tab === 'profile' && <ProfileTab user={user} onSave={refetchUser} />}
-        {tab === 'account' && <AccountTab user={user} />}
-        {tab === 'security' && <SecurityTab />}
-        {tab === 'notifications' && <NotificationsTab user={user} onSave={refetchUser} />}
+        <section aria-labelledby="settings-section" className="min-w-0">
+          <div className="mb-6">
+            <h2 id="settings-section" className="font-display text-2xl font-semibold tracking-tight text-[var(--color-text-primary)]">
+              {current.label}
+            </h2>
+            <p className="mt-1 text-sm text-[var(--color-text-secondary)]">{current.hint}</p>
+          </div>
+          {tab === 'profile' && <ProfileTab user={user} onSave={refetchUser} />}
+          {tab === 'account' && <AccountTab user={user} />}
+          {tab === 'wallet' && (
+            <div className="space-y-10">
+              <WalletCard dbWallet={user.walletAddress ?? null} />
+              <DepositCard />
+              <WithdrawCard />
+            </div>
+          )}
+          {tab === 'notifications' && <NotificationsTab user={user} onSave={refetchUser} />}
+          {tab === 'security' && <SecurityTab />}
+          {tab === 'network' && <NetworkPanel wallet={user.walletAddress ?? null} />}
+        </section>
       </div>
     </div>
   );
@@ -521,7 +524,7 @@ function ProfileSection({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-background-secondary)] p-5">
+    <div className="border-t border-[var(--color-border-strong)] pt-5">
       <h3 className="font-display text-base font-semibold text-[var(--color-text-primary)]">
         {title}
       </h3>
@@ -545,11 +548,7 @@ function AccountTab({ user }: { user: NonNullable<ReturnType<typeof useAuth>['us
 
   return (
     <div className="space-y-6">
-      <WalletCard dbWallet={user.walletAddress ?? null} />
-      <DepositCard />
-      <WithdrawCard />
-
-      <div className="rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-background-secondary)] p-5">
+      <div className="border-t border-[var(--color-border-strong)] pt-5">
         <h3 className="font-display text-base font-semibold text-[var(--color-text-primary)]">
           Account details
         </h3>
@@ -633,7 +632,7 @@ function DataExportCard() {
   };
 
   return (
-    <div className="rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-background-secondary)] p-5">
+    <div className="border-t border-[var(--color-border-strong)] pt-5">
       <h3 className="font-display text-base font-semibold text-[var(--color-text-primary)]">
         Your data
       </h3>
@@ -712,7 +711,7 @@ function NotificationsTab({ user, onSave }: { user: NonNullable<ReturnType<typeo
 
   return (
     <div className="space-y-6">
-      <div className="rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-background-secondary)] p-5">
+      <div className="border-t border-[var(--color-border-strong)] pt-5">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="font-display text-base font-semibold text-[var(--color-text-primary)]">

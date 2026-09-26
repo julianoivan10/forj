@@ -79,7 +79,7 @@ export function Footer() {
             <Link href="/" className="flex items-center gap-2.5" aria-label="Forj Home">
               <Image src="/logo.svg" alt="" width={32} height={32} className="size-8" />
               <span className="font-display text-xl font-bold tracking-tight text-[var(--color-text-primary)]">
-                For<span className="text-[var(--color-brand-primary)]">j</span>
+                Forj
               </span>
             </Link>
             <p className="mt-4 text-sm leading-relaxed text-[var(--color-text-secondary)]">
@@ -153,7 +153,7 @@ export function Footer() {
             {t('footer.rights', { year: new Date().getFullYear() })}
           </p>
           <div className="flex items-center gap-2 text-xs text-[var(--color-text-tertiary)]">
-            <span className="inline-block size-2 rounded-full bg-[var(--color-success)] shadow-[0_0_6px_var(--color-success)]" />
+            <span className="inline-block size-2 rounded-full bg-[var(--color-success)]" />
             {t('footer.builtOn')}
           </div>
         </div>

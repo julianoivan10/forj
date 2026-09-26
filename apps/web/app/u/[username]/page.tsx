@@ -8,7 +8,7 @@ interface PageProps {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { username } = await params;
   return {
-    title: `@${username} — Forj`,
+    title: `@${username}`,
     description: `Public profile and work history for @${username} on Forj.`,
   };
 }

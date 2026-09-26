@@ -78,9 +78,9 @@ export function JobsFilters({ value, onChange, onReset }: JobsFiltersProps) {
   };
 
   return (
-    <aside className="flex flex-col gap-6 rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-background-secondary)] p-5">
+    <aside className="flex min-w-0 flex-col gap-6 border-t border-[var(--color-rule)] pt-4">
       <div className="flex items-center justify-between">
-        <h2 className="font-display text-sm font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)]">
+        <h2 className="label-mono text-[var(--color-text-primary)]">
           Filters {activeCount > 0 ? `· ${activeCount}` : ''}
         </h2>
         {activeCount > 0 ? (
@@ -214,7 +214,7 @@ function FilterSection({
 }) {
   return (
     <div className="flex flex-col gap-2">
-      <Label className="text-xs uppercase tracking-wider text-[var(--color-text-tertiary)]">
+      <Label className="label-mono">
         {title}
       </Label>
       {children}
@@ -246,7 +246,7 @@ function RadioRow({
         className={cn(
           'inline-block size-3.5 rounded-full border transition-colors',
           checked
-            ? 'border-[var(--color-brand-primary)] bg-[var(--color-brand-primary)] shadow-[0_0_0_3px_var(--color-glow-brand)]'
+            ? 'border-[var(--color-brand-primary)] bg-[var(--color-brand-primary)]'
             : 'border-[var(--color-border-strong)]',
         )}
         aria-hidden

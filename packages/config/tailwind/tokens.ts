@@ -54,5 +54,5 @@ export const fonts = {
   mono: 'var(--font-geist-mono)',
 } as const;
 
-export type WorkChainColors = typeof colors;
-export type WorkChainRadius = typeof radius;
+export type ForjColors = typeof colors;
+export type ForjRadius = typeof radius;

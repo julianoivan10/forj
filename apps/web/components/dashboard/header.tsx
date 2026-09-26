@@ -2,227 +2,187 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Menu,
-  X,
-  LayoutDashboard,
-  Briefcase,
-  FileText,
-  FileSignature,
-  MessageSquare,
-  Bell,
-  Bookmark,
-  Sparkles,
-  Settings,
-} from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { MoreHorizontal, X } from 'lucide-react';
 import { UserMenu } from '@/components/auth/user-menu';
 import { NotificationsBell } from '@/components/dashboard/notifications-bell';
-import { ThemeToggle } from '@/components/theme/theme-toggle';
 import { SearchTrigger } from '@/components/search/search-trigger';
+import { ThemeToggle } from '@/components/theme/theme-toggle';
 import { LanguageSwitcher } from '@/components/layout/language-switcher';
-import { useT } from '@/lib/i18n/provider';
+import { ModeSwitcher } from '@/components/dashboard/mode-switcher';
+import { NetworkIndicator } from '@/components/dashboard/network-indicator';
+import { useInboxCounts } from '@/components/dashboard/sidebar';
+import { isActive, resolveHref, sectionsFor, tabsFor, type Mode } from '@/components/dashboard/nav-config';
 import { useAuth } from '@/hooks/use-auth';
+import { useT } from '@/lib/i18n/provider';
 import { cn } from '@/lib/utils';
 
-const DASHBOARD_TITLE_MAP: Array<{ match: RegExp; label: string }> = [
-  { match: /^\/dashboard\/messages(\/.*)?$/, label: 'Messages' },
-  { match: /^\/dashboard\/notifications(\/.*)?$/, label: 'Notifications' },
-  { match: /^\/dashboard\/contracts(\/.*)?$/, label: 'Contracts' },
-  { match: /^\/dashboard\/jobs(\/.*)?$/, label: 'My Jobs' },
-  { match: /^\/dashboard\/proposals(\/.*)?$/, label: 'My Proposals' },
-  { match: /^\/dashboard\/settings(\/.*)?$/, label: 'Settings' },
-  { match: /^\/dashboard\/?$/, label: 'Dashboard' },
+const TRAIL: Array<{ match: RegExp; label: string }> = [
+  { match: /^\/dashboard\/contracts\/.+/, label: 'Contracts / Escrow' },
+  { match: /^\/dashboard\/contracts\/?$/, label: 'Contracts' },
+  { match: /^\/dashboard\/messages/, label: 'Inbox / Messages' },
+  { match: /^\/dashboard\/notifications/, label: 'Inbox / Activity' },
+  { match: /^\/dashboard\/jobs\/new/, label: 'Jobs / New' },
+  { match: /^\/dashboard\/jobs/, label: 'Posted jobs' },
+  { match: /^\/dashboard\/proposals/, label: 'Proposals' },
+  { match: /^\/dashboard\/services/, label: 'Services' },
+  { match: /^\/dashboard\/saved-services/, label: 'Saved / Services' },
+  { match: /^\/dashboard\/saved/, label: 'Saved / Jobs' },
+  { match: /^\/dashboard\/settings/, label: 'Settings' },
+  { match: /^\/dashboard\/?$/, label: 'Console' },
 ];
 
-function getDashboardTitle(pathname: string): string {
-  return DASHBOARD_TITLE_MAP.find((r) => r.match.test(pathname))?.label ?? 'Dashboard';
-}
-
-// Mobile drawer mirrors the desktop sidebar's grouped layout so users
-// get a consistent mental model across breakpoints. Same Hiring/Work
-// perspective split; same group ids drive the same mode-aware filter.
-type Mode = 'client' | 'freelancer' | 'both';
-interface MobileNavItemKeyed {
-  labelKey: string;
-  href: string;
-  icon: React.ComponentType<{ className?: string }>;
-}
-interface MobileNavGroup {
-  id: string;
-  titleKey: string | null;
-  items: MobileNavItemKeyed[];
-}
-const GROUPS_BY_MODE: Record<Mode, Set<string>> = {
-  client: new Set(['overview', 'hiring', 'inbox', 'account']),
-  freelancer: new Set(['overview', 'work', 'inbox', 'account']),
-  both: new Set(['overview', 'hiring', 'work', 'inbox', 'account']),
-};
-const MOBILE_NAV: MobileNavGroup[] = [
-  { id: 'overview', titleKey: null, items: [{ labelKey: 'sidebar.overview', href: '/dashboard', icon: LayoutDashboard }] },
-  {
-    id: 'hiring',
-    titleKey: 'sidebar.hiring',
-    items: [
-      { labelKey: 'sidebar.myJobs', href: '/dashboard/jobs', icon: Briefcase },
-      { labelKey: 'sidebar.savedServices', href: '/dashboard/saved-services', icon: Bookmark },
-      { labelKey: 'sidebar.contracts', href: '/dashboard/contracts', icon: FileSignature },
-    ],
-  },
-  {
-    id: 'work',
-    titleKey: 'sidebar.work',
-    items: [
-      { labelKey: 'sidebar.myProposals', href: '/dashboard/proposals', icon: FileText },
-      { labelKey: 'sidebar.myServices', href: '/dashboard/services', icon: Sparkles },
-      { labelKey: 'sidebar.savedJobs', href: '/dashboard/saved', icon: Bookmark },
-      { labelKey: 'sidebar.contracts', href: '/dashboard/contracts', icon: FileSignature },
-    ],
-  },
-  {
-    id: 'inbox',
-    titleKey: 'sidebar.inbox',
-    items: [
-      { labelKey: 'sidebar.messages', href: '/dashboard/messages', icon: MessageSquare },
-      { labelKey: 'sidebar.notifications', href: '/dashboard/notifications', icon: Bell },
-    ],
-  },
-  {
-    id: 'account',
-    titleKey: 'sidebar.account',
-    items: [{ labelKey: 'sidebar.settings', href: '/dashboard/settings', icon: Settings }],
-  },
-];
-
+/**
+ * Top bar: where you are (mono trail) and global tools. On mobile it pairs
+ * with <MobileTabBar>, which carries navigation.
+ */
 export function DashboardHeader() {
+  const pathname = usePathname();
+  const trail = TRAIL.find((r) => r.match.test(pathname))?.label ?? 'Workspace';
+
+  return (
+    <header className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b border-[var(--color-border-default)] bg-[var(--color-background)] px-4 sm:px-6 lg:px-8">
+      <p className="min-w-0 flex-1 truncate font-mono text-[12px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
+        <span className="text-[var(--color-text-tertiary)]">Forj / </span>
+        {trail}
+      </p>
+      <div className="flex items-center gap-1 sm:gap-2">
+        <SearchTrigger />
+        <span className="hidden sm:inline-flex">
+          <LanguageSwitcher />
+        </span>
+        <ThemeToggle />
+        <NotificationsBell />
+        <UserMenu />
+      </div>
+    </header>
+  );
+}
+
+/**
+ * Mobile navigation: the four destinations that matter most for this
+ * perspective as a bottom bar (thumb reach), everything else in a sheet.
+ */
+export function MobileTabBar() {
   const pathname = usePathname();
   const { user } = useAuth();
   const t = useT();
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const counts = useInboxCounts();
+  const [moreOpen, setMoreOpen] = useState(false);
+  const mode = (user?.role ?? 'client') as Mode;
+  const username = user?.username ?? null;
+  const tabs = tabsFor(mode);
 
-  // Derive page title from pathname. We map known top-level dashboard routes to
-  // readable labels; anything deeper falls back to the nearest matching label so
-  // detail pages (e.g. /dashboard/messages/<uuid>) don't leak raw IDs into the header.
-  const title = getDashboardTitle(pathname);
+  useEffect(() => setMoreOpen(false), [pathname]);
+  useEffect(() => {
+    document.body.style.overflow = moreOpen ? 'hidden' : '';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [moreOpen]);
+
+  const tabHrefs = new Set(tabs.map((i) => resolveHref(i, username)));
+  const moreActive = !tabs.some((i) => isActive(i, resolveHref(i, username), pathname));
 
   return (
     <>
-      <header className="sticky top-0 z-20 flex h-16 items-center gap-2 border-b border-[var(--color-border-default)] bg-[var(--color-background-primary)]/80 px-3 backdrop-blur-xl sm:gap-4 sm:px-4 lg:px-8">
-        {/* Mobile menu toggle */}
-        <button
-          onClick={() => setMobileOpen(true)}
-          className="inline-flex size-10 shrink-0 items-center justify-center rounded-[var(--radius-md)] text-[var(--color-text-secondary)] hover:bg-[var(--color-text-primary)]/[0.04] lg:hidden"
-          aria-label="Open menu"
-        >
-          <Menu className="size-5" />
-        </button>
-
-        {/* Page title — hidden on the smallest screens so 5 right-side
-            icons + the hamburger have room to breathe. Title reappears
-            at `sm:` (≥640px); at lg: gets its desktop-size font. */}
-        <h1 className="hidden flex-1 truncate font-display text-lg font-bold text-[var(--color-text-primary)] sm:block lg:text-xl">
-          {title}
-        </h1>
-
-        {/* Spacer that keeps right-side icons flush right on mobile when
-            the title is hidden. Without this the icons would flow left,
-            looking off-balance. */}
-        <div className="flex-1 sm:hidden" aria-hidden />
-
-        <div className="flex items-center gap-1 sm:gap-2">
-          <SearchTrigger />
-          <LanguageSwitcher />
-          <ThemeToggle />
-          <NotificationsBell />
-          <UserMenu />
-        </div>
-      </header>
-
-      {/* Mobile sidebar overlay */}
-      <AnimatePresence>
-        {mobileOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
-              onClick={() => setMobileOpen(false)}
-            />
-            <motion.div
-              initial={{ x: '-100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '-100%' }}
-              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-              className="fixed inset-y-0 left-0 z-50 w-[280px] border-r border-[var(--color-border-default)] bg-[var(--color-background-secondary)] lg:hidden"
+      <nav
+        aria-label="Primary"
+        className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-[var(--color-rule)] bg-[var(--color-background)] pb-[env(safe-area-inset-bottom)] lg:hidden"
+      >
+        {tabs.map((item) => {
+          const href = resolveHref(item, username);
+          const active = isActive(item, href, pathname);
+          const badge = item.badge ? counts[item.badge] : 0;
+          return (
+            <Link
+              key={item.key}
+              href={href}
+              aria-current={active ? 'page' : undefined}
+              className={cn(
+                'relative flex min-h-14 flex-col items-center justify-center gap-1 text-[11px]',
+                active ? 'font-semibold text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)]',
+              )}
             >
-              <div className="flex h-16 items-center justify-between border-b border-[var(--color-border-default)] px-5">
-                <span className="font-display text-lg font-bold text-[var(--color-text-primary)]">
-                  Menu
+              <span aria-hidden className={cn('absolute inset-x-4 top-0 h-[2px]', active && 'bg-[var(--color-brand-primary)]')} />
+              <item.icon className="size-5" />
+              {t(item.labelKey)}
+              {badge > 0 ? (
+                <span className="absolute right-[22%] top-2 min-w-4 bg-[var(--color-brand-primary)] px-1 font-mono text-[10px] leading-4 text-[var(--color-on-brand)] tnum">
+                  {badge > 9 ? '9+' : badge}
+                  <span className="sr-only"> unread</span>
                 </span>
-                <button
-                  onClick={() => setMobileOpen(false)}
-                  className="inline-flex size-10 items-center justify-center rounded-[var(--radius-md)] text-[var(--color-text-secondary)] hover:bg-[var(--color-text-primary)]/[0.04]"
-                  aria-label="Close menu"
-                >
-                  <X className="size-5" />
-                </button>
+              ) : null}
+            </Link>
+          );
+        })}
+        <button
+          type="button"
+          onClick={() => setMoreOpen(true)}
+          aria-expanded={moreOpen}
+          aria-controls="more-sheet"
+          className={cn(
+            'relative flex min-h-14 flex-col items-center justify-center gap-1 text-[11px]',
+            moreActive ? 'font-semibold text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)]',
+          )}
+        >
+          <span aria-hidden className={cn('absolute inset-x-4 top-0 h-[2px]', moreActive && 'bg-[var(--color-brand-primary)]')} />
+          <MoreHorizontal className="size-5" />
+          {t('shell.more')}
+        </button>
+      </nav>
+
+      {moreOpen ? (
+        <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true" aria-label="All sections" id="more-sheet">
+          <button type="button" aria-label="Close" className="absolute inset-0 bg-[#16150f]/45" onClick={() => setMoreOpen(false)} />
+          <div className="page-enter absolute inset-x-0 bottom-0 max-h-[85dvh] overflow-y-auto border-t-2 border-[var(--color-rule)] bg-[var(--color-background)] px-5 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-4">
+            <div className="flex items-center justify-between">
+              <NetworkIndicator />
+              <button
+                type="button"
+                onClick={() => setMoreOpen(false)}
+                className="inline-flex size-11 items-center justify-center text-[var(--color-text-secondary)]"
+                aria-label="Close"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+            {user ? (
+              <div className="mt-2">
+                <ModeSwitcher />
               </div>
-              <nav className="overflow-y-auto p-3">
-                {MOBILE_NAV.filter((g) => {
-                  // Default 'client' during auth load — see sidebar.tsx for full rationale.
-                  const mode = (user?.role ?? 'client') as Mode;
-                  return GROUPS_BY_MODE[mode].has(g.id);
-                }).map((group, gi) => (
-                  <div key={group.id} className={cn(gi > 0 && 'mt-5')}>
-                    {group.titleKey ? (
-                      <p className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">
-                        {t(group.titleKey)}
-                      </p>
-                    ) : null}
-                    <div className="space-y-1">
-                      {group.items.map((item) => {
-                        const isActive =
-                          pathname === item.href ||
-                          (item.href !== '/dashboard' && pathname.startsWith(item.href));
-                        return (
-                          <Link
-                            key={item.href}
-                            href={item.href}
-                            onClick={() => setMobileOpen(false)}
-                            className={cn(
-                              'group relative flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm font-medium transition-all',
-                              isActive
-                                ? 'bg-[var(--color-brand-primary)]/10 text-[var(--color-brand-primary)]'
-                                : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-text-primary)]/[0.04] hover:text-[var(--color-text-primary)]',
-                            )}
-                          >
-                            <span
-                              aria-hidden
-                              className={cn(
-                                'absolute left-0 top-1/2 -translate-y-1/2 rounded-r-full bg-[var(--color-brand-primary)] transition-all',
-                                isActive ? 'h-5 w-[3px] opacity-100' : 'h-0 w-0 opacity-0',
-                              )}
-                            />
-                            <item.icon
-                              className={cn(
-                                'size-[18px]',
-                                isActive ? 'text-[var(--color-brand-primary)]' : 'opacity-60',
-                              )}
-                            />
-                            {t(item.labelKey)}
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </nav>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+            ) : null}
+            {sectionsFor(mode).map((section) => (
+              <div key={section.key} className="mt-5">
+                <p className="label-mono">{t(section.titleKey)}</p>
+                <ul className="mt-1 divide-y divide-[var(--color-border-default)] border-y border-[var(--color-border-default)]">
+                  {section.items.map((item) => {
+                    const href = resolveHref(item, username);
+                    const active = isActive(item, href, pathname);
+                    const badge = item.badge ? counts[item.badge] : 0;
+                    return (
+                      <li key={item.key}>
+                        <Link
+                          href={href}
+                          aria-current={active ? 'page' : undefined}
+                          className={cn(
+                            'flex min-h-12 items-center justify-between text-[15px]',
+                            active ? 'font-semibold text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)]',
+                            tabHrefs.has(href) && 'text-[var(--color-text-tertiary)]',
+                          )}
+                        >
+                          {t(item.labelKey)}
+                          {badge > 0 ? <span className="font-mono text-xs text-[var(--color-brand-primary)] tnum">{badge}</span> : null}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

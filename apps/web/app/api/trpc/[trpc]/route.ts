@@ -1,4 +1,4 @@
-import { appRouter, createTRPCContext } from '@forj/api';
+import { appRouter, createTRPCContext, log } from '@forj/api';
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
 import { cookies } from 'next/headers';
 import type { NextRequest } from 'next/server';
@@ -40,6 +40,12 @@ const handler = async (req: NextRequest) => {
     onError({ path, error }) {
       if (process.env.NODE_ENV === 'development') {
         console.error(`[tRPC] ${path ?? '<no-path>'}: ${error.message}`);
+        return;
+      }
+      // Production: unexpected failures only (not validation/auth 4xx), and
+      // never the input, which can contain personal data.
+      if (error.code === 'INTERNAL_SERVER_ERROR') {
+        log('error', 'trpc.internal_error', { path, message: error.message, cause: error.cause });
       }
     },
   });

@@ -25,7 +25,7 @@ export function DisputeOpenedEmail({
       </Paragraph>
       <Paragraph>Reason: {reason}</Paragraph>
       <Paragraph>
-        The escrow is now paused. A WorkChain arbitrator will review both sides and make a
+        The escrow is now paused. A Forj arbitrator will review both sides and make a
         resolution within 48 hours.
       </Paragraph>
       <CtaButton href={`${appUrl}/contracts/${contractId}`} label="Open Contract" />

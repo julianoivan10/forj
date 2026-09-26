@@ -80,7 +80,7 @@ export default function HowItWorksPage() {
                 <div className="flex size-12 items-center justify-center rounded-[var(--radius-md)] bg-[var(--color-glow-brand)]">
                   <s.icon className="size-5 text-[var(--color-brand-primary)]" />
                 </div>
-                <span className="absolute -right-1.5 -top-1.5 inline-flex size-6 items-center justify-center rounded-full bg-[var(--color-brand-primary)] font-display text-[11px] font-bold text-[#14130E]">
+                <span className="absolute -right-1.5 -top-1.5 inline-flex size-6 items-center justify-center rounded-full bg-[var(--color-brand-primary)] font-display text-[11px] font-bold text-[var(--color-on-brand)]">
                   {i + 1}
                 </span>
               </div>

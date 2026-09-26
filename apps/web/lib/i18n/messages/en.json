@@ -101,5 +101,25 @@
     "legal": "Legal",
     "rights": "© {year} Forj. All rights reserved.",
     "builtOn": "Built on Base Network"
+  },
+  "shell": {
+    "work": "Work",
+    "console": "Console",
+    "contracts": "Contracts",
+    "findWork": "Find work",
+    "postedJobs": "Posted jobs",
+    "proposals": "Proposals",
+    "services": "Services",
+    "inbox": "Inbox",
+    "messages": "Messages",
+    "activity": "Activity",
+    "saved": "Saved",
+    "savedJobs": "Saved jobs",
+    "savedServices": "Saved services",
+    "you": "You",
+    "profile": "Profile",
+    "settings": "Settings",
+    "more": "More",
+    "publicSite": "Public site"
   }
 }

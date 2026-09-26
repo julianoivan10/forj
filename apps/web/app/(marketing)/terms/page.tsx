@@ -36,21 +36,27 @@ export default function TermsPage() {
 
       <h2>3. Escrow & payments</h2>
       <p>
-        All payments settle on-chain in USDC on Base. When a client funds a job,
-        USDC is moved into the <code>WorkChainEscrow</code> smart contract (the
-        contract address is published on the wallet card and is independently
-        verifiable on Basescan). Funds are released by:
+        All payments settle on-chain in USDC on Base. When a client funds a contract,
+        USDC moves into the <code>ForjEscrowV3</code> smart contract, whose address is shown
+        on each contract page and is independently verifiable on Basescan. The contract
+        enforces these rules:
       </p>
       <ul>
-        <li>Client approval (immediate release)</li>
-        <li>Freelancer claim after the auto-release window (default 7 days
-            after submission), if the client takes no action</li>
-        <li>Arbiter resolution if a dispute is raised</li>
+        <li>The client can release payment at any time before a dispute.</li>
+        <li>After each submission the client has 7 days to approve, request a revision or
+            open a dispute. If the client does nothing, anyone can release the payment to the
+            freelancer.</li>
+        <li>The client can request at most 2 revisions per contract.</li>
+        <li>The client gets a full refund only if the freelancer cancels, or if no
+            submission (or resubmission) arrives before the work deadline.</li>
+        <li>In a dispute, the arbiter decides how the work amount is split between client and
+            freelancer. Platform fees apply only to the freelancer&rsquo;s share. If the arbiter
+            doesn&rsquo;t decide within 14 days, the contract splits the work amount 50/50 and
+            charges no fee.</li>
       </ul>
       <p>
-        Forj does not custody funds. The smart contract holds them, and the
-        platform&rsquo;s arbiter role is limited to resolving disputes that the
-        parties cannot resolve themselves.
+        Forj does not custody funds. The smart contract holds them. Contracts funded before
+        ForjEscrowV3 follow the rules of the contract they were funded under.
       </p>
 
       <h2>4. Platform fees</h2>

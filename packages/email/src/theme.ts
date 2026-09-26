@@ -13,5 +13,7 @@ export const emailTheme = {
   error: '#FF4D6D',
 } as const;
 
-export const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://workchain.io';
-export const fromEmail = process.env.RESEND_FROM_EMAIL ?? 'noreply@workchain.io';
+// Fallbacks must never point at a domain Forj doesn't control — links in
+// emails would otherwise send users to whoever owns the old WorkChain domain.
+export const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://forj-pi.vercel.app').replace(/\/+$/, '');
+export const fromEmail = process.env.RESEND_FROM_EMAIL ?? 'onboarding@resend.dev';

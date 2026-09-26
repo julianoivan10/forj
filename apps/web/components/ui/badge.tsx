@@ -3,13 +3,13 @@ import type { HTMLAttributes } from 'react';
 import { cn } from '@/lib/utils';
 
 const badgeVariants = cva(
-  'inline-flex items-center gap-1.5 rounded-[var(--radius-full)] px-2.5 py-0.5 text-xs font-medium ' +
+  'inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] px-2 py-0.5 text-xs font-medium ' +
     'transition-colors [&>svg]:size-3',
   {
     variants: {
       variant: {
         default:
-          'bg-[var(--color-background-elevated)] text-[var(--color-text-secondary)] border border-[var(--color-border-default)]',
+          'bg-transparent text-[var(--color-text-secondary)] border border-[var(--color-border-default)]',
         brand:
           'bg-[var(--color-glow-brand)] text-[var(--color-brand-primary)] border border-[var(--color-border-brand)]',
         success:

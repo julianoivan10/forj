@@ -189,7 +189,7 @@ export function OnboardingForm() {
       transition={{ duration: 0.4 }}
       className="w-full max-w-[560px]"
     >
-      <div className="rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-background-secondary)]/80 p-8 backdrop-blur-xl shadow-2xl shadow-black/30">
+      <div className="rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-background-secondary)]/80 p-8">
         {/* Progress bar */}
         <div className="mb-8">
           <div className="flex items-center justify-between text-xs text-[var(--color-text-tertiary)]">
@@ -198,7 +198,7 @@ export function OnboardingForm() {
           </div>
           <div className="mt-2 h-1 overflow-hidden rounded-full bg-[var(--color-background-tertiary)]">
             <motion.div
-              className="h-full rounded-full bg-gradient-to-r from-[var(--color-brand-primary)] to-[var(--color-brand-accent)]"
+              className="h-full rounded-full bg-[var(--color-glow-brand)]"
               animate={{ width: `${progress}%` }}
               transition={{ duration: 0.3 }}
             />
@@ -230,7 +230,7 @@ export function OnboardingForm() {
                       className={cn(
                         'flex size-11 items-center justify-center rounded-[var(--radius-md)] transition-colors',
                         state.role === opt.value
-                          ? 'bg-gradient-to-br from-[var(--color-brand-primary)]/30 to-[var(--color-brand-secondary)]/30'
+                          ? 'bg-[var(--color-glow-brand)]'
                           : 'bg-[var(--color-background-tertiary)]',
                       )}
                     >

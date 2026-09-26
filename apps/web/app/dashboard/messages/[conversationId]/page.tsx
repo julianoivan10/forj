@@ -457,7 +457,7 @@ export default function ConversationThreadPage() {
                                   // sender side, hugs neighbours within burst.
                                   isMine
                                     ? cn(
-                                        'bg-gradient-to-br from-[var(--color-brand-primary)] to-[var(--color-brand-secondary)] text-white shadow-sm',
+                                        'bg-[var(--color-glow-brand)] text-white shadow-sm',
                                         isFirst ? 'rounded-t-[var(--radius-xl)]' : 'rounded-tr-[var(--radius-sm)] rounded-tl-[var(--radius-xl)]',
                                         isLast ? 'rounded-bl-[var(--radius-xl)] rounded-br-[var(--radius-sm)]' : 'rounded-br-[var(--radius-sm)] rounded-bl-[var(--radius-xl)]',
                                         isOptimistic && 'opacity-70',
@@ -547,7 +547,7 @@ export default function ConversationThreadPage() {
             'bg-[var(--color-background-elevated)] border border-[var(--color-border-default)]',
             'px-3 py-2.5 text-sm text-[var(--color-text-primary)]',
             'placeholder:text-[var(--color-text-tertiary)]',
-            'focus:outline-none focus:border-[var(--color-brand-primary)] focus:shadow-[0_0_0_3px_var(--color-glow-brand)]',
+            'focus:outline-none focus:border-[var(--color-brand-primary)]',
             'disabled:cursor-not-allowed disabled:opacity-40',
           )}
         />

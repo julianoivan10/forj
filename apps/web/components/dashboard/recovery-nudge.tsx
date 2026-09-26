@@ -83,7 +83,7 @@ export function RecoveryNudge() {
       data-recovery-nudge
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      className="relative overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-warning)]/30 bg-gradient-to-br from-[var(--color-warning)]/10 via-[var(--color-background-secondary)] to-[var(--color-background-secondary)] p-5"
+      className="relative overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-warning)]/30 bg-[var(--color-glow-brand)] p-5"
     >
       <button
         type="button"

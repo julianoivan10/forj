@@ -17,7 +17,7 @@ const ModalOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      'fixed inset-0 z-50 bg-black/70 backdrop-blur-md',
+      'fixed inset-0 z-50 bg-[#16150f]/55',
       'data-[state=open]:animate-in data-[state=open]:fade-in-0',
       'data-[state=closed]:animate-out data-[state=closed]:fade-out-0',
       className,
@@ -56,7 +56,7 @@ export const ModalContent = React.forwardRef<
           'rounded-[var(--radius-lg)] border border-[var(--color-border-default)]',
           // Tighter padding on small screens so the content area inside
           // the modal isn't a tiny strip.
-          'bg-[var(--color-background-secondary)] p-5 sm:p-6 shadow-2xl',
+          'bg-[var(--color-background-elevated)] p-5 sm:p-6 border-t-2 border-t-[var(--color-rule)]',
           'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
           'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95',
           className,

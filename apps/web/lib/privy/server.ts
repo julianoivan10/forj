@@ -2,6 +2,7 @@ import 'server-only';
 import { PrivyClient } from '@privy-io/server-auth';
 import { and, db, eq, isNull, users } from '@forj/db';
 import type { User } from '@forj/db';
+import { log } from '@forj/api';
 
 const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
 const appSecret = process.env.PRIVY_APP_SECRET;
@@ -20,8 +21,14 @@ function getPrivyClient(): PrivyClient {
 
 const isDev = process.env.NODE_ENV !== 'production';
 
+/** Stages that mean misconfiguration or outage rather than a bad token. */
+const OPERATIONAL_STAGES = new Set(['getPrivyClient', 'db provisioning']);
+
 function logAuthError(stage: string, err: unknown) {
-  if (!isDev) return;
+  if (!isDev) {
+    if (OPERATIONAL_STAGES.has(stage)) log('error', 'auth.failure', { stage, err });
+    return;
+  }
   const msg = err instanceof Error ? err.message : String(err);
   console.error(`[privy/auth] ${stage} failed: ${msg}`);
 }

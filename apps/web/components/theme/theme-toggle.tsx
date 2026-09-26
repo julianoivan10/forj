@@ -34,7 +34,7 @@ export function ThemeToggle({ className }: { className?: string }) {
       role="radiogroup"
       aria-label="Theme"
       className={cn(
-        'inline-flex items-center gap-0.5 rounded-[var(--radius-full)] border border-[var(--color-border-default)] bg-[var(--color-background-secondary)] p-1',
+        'inline-flex items-center gap-0.5 rounded-[var(--radius-sm)] border border-[var(--color-border-default)] p-0.5',
         className,
       )}
     >
@@ -51,7 +51,7 @@ export function ThemeToggle({ className }: { className?: string }) {
             title={opt.label}
             onClick={() => setTheme(opt.value)}
             className={cn(
-              'relative inline-flex size-7 items-center justify-center rounded-[var(--radius-full)] transition-colors',
+              'relative inline-flex size-7 items-center justify-center rounded-[2px] transition-colors',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-primary)]',
               isActive
                 ? 'text-[var(--color-brand-primary)]'
@@ -61,7 +61,7 @@ export function ThemeToggle({ className }: { className?: string }) {
             {isActive ? (
               <motion.span
                 layoutId="theme-toggle-active"
-                className="absolute inset-0 rounded-[var(--radius-full)] bg-[var(--color-glow-brand)]"
+                className="absolute inset-0 rounded-[2px] bg-[var(--color-text-primary)]/[0.08]"
                 transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                 aria-hidden
               />

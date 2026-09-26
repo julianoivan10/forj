@@ -90,7 +90,7 @@ export function AvatarUpload({
         <UserAvatar name={name} imageUrl={currentUrl} size="xl" />
         <div
           className={cn(
-            'absolute inset-0 flex items-center justify-center rounded-full bg-black/50 backdrop-blur-sm transition-opacity',
+            'absolute inset-0 flex items-center justify-center rounded-full bg-black/50 transition-opacity',
             hovering || isUploading ? 'opacity-100' : 'opacity-0',
           )}
           aria-hidden

@@ -1,5 +1,4 @@
 import { TRPCError } from '@trpc/server';
-import { DEFAULT_FEE_BPS } from '@forj/contracts';
 import {
   and,
   asc,
@@ -17,6 +16,7 @@ import {
   type ServiceTier,
 } from '@forj/db';
 import { z } from 'zod';
+import { splitContractAmount } from '../lib/fees';
 import { isAllowedFileUrl } from '../lib/file-host';
 import { RATE_LIMITS, checkRateLimit } from '../middleware/rate-limit';
 import { notify } from '../services/notifications';
@@ -407,9 +407,7 @@ export const serviceRouter = createTRPCRouter({
 
       // Financials — same canonical fee calc as proposal.accept.
       const total = tier.price;
-      const feeRate = DEFAULT_FEE_BPS / 10_000;
-      const platformFee = Math.round(total * feeRate * 100) / 100;
-      const freelancerAmount = Math.round((total - platformFee) * 100) / 100;
+      const { platformFee, freelancerAmount } = splitContractAmount(total);
       const deliveryDeadline = new Date(
         Date.now() + tier.deliveryDays * 24 * 60 * 60 * 1000,
       );
@@ -472,8 +470,8 @@ export const serviceRouter = createTRPCRouter({
           proposalId: proposal.id,
           title: service.title,
           totalAmount: total.toString(),
-          platformFee: platformFee.toString(),
-          freelancerAmount: freelancerAmount.toString(),
+          platformFee,
+          freelancerAmount,
           paymentMethod: 'crypto',
           deliveryDeadline,
         })

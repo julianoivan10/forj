@@ -12,11 +12,11 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
   ({ className, type = 'text', leftIcon, rightIcon, error, ...props }, ref) => {
     const wrapperClasses = cn(
-      'group relative flex w-full items-center h-11 rounded-[var(--radius-md)] transition-colors duration-200',
-      'bg-[var(--color-background-elevated)] border',
+      'group relative flex w-full items-center h-11 rounded-[var(--radius-sm)] transition-colors duration-150',
+      'bg-[var(--color-background-secondary)] border',
       error
         ? 'border-[var(--color-error)]/50 focus-within:border-[var(--color-error)]'
-        : 'border-[var(--color-border-default)] focus-within:border-[var(--color-brand-primary)] focus-within:shadow-[0_0_0_3px_var(--color-glow-brand)]',
+        : 'border-[var(--color-border-strong)] focus-within:border-[var(--color-brand-primary)] focus-within:shadow-[inset_0_0_0_1px_var(--color-brand-primary)]',
     );
 
     return (
@@ -54,13 +54,13 @@ export const Textarea = React.forwardRef<
     <textarea
       ref={ref}
       className={cn(
-        'w-full min-h-[100px] rounded-[var(--radius-md)] bg-[var(--color-background-elevated)] border',
+        'w-full min-h-[100px] rounded-[var(--radius-sm)] bg-[var(--color-background-secondary)] border',
         'px-3 py-3 text-sm text-[var(--color-text-primary)]',
         'placeholder:text-[var(--color-text-tertiary)] transition-colors duration-200',
         'focus:outline-none resize-y',
         error
           ? 'border-[var(--color-error)]/50 focus:border-[var(--color-error)]'
-          : 'border-[var(--color-border-default)] focus:border-[var(--color-brand-primary)] focus:shadow-[0_0_0_3px_var(--color-glow-brand)]',
+          : 'border-[var(--color-border-strong)] focus:border-[var(--color-brand-primary)] focus:shadow-[inset_0_0_0_1px_var(--color-brand-primary)]',
         'disabled:cursor-not-allowed disabled:opacity-40',
         className,
       )}

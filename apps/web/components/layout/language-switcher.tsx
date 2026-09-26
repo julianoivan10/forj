@@ -37,7 +37,7 @@ export function LanguageSwitcher() {
         <DropdownMenu.Content
           align="end"
           sideOffset={8}
-          className="z-50 min-w-[200px] overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-background-secondary)] p-1 shadow-xl shadow-black/30"
+          className="z-50 min-w-[200px] overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-background-secondary)] p-1"
         >
           {LANGUAGES.map((l) => {
             const isActive = l.code === lang;

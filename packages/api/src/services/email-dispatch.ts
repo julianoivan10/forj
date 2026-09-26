@@ -276,7 +276,7 @@ function render(
         subject,
         react: MessageNotificationEmail({
           recipientName: recipient.displayName,
-          senderName: 'WorkChain',
+          senderName: 'Forj',
           snippet: input.body ?? input.title,
           conversationId,
         }),

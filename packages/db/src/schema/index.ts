@@ -11,3 +11,4 @@ export * from './saved-jobs';
 export * from './saved-services';
 export * from './admin-audit';
 export * from './articles';
+export * from './escrow-sync';

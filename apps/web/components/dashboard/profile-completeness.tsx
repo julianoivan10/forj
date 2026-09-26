@@ -27,7 +27,9 @@ import { useAuth } from '@/hooks/use-auth';
  * to fill it in isn't nagged on every session.
  */
 
-const STORAGE_KEY = 'workchain:profile-nudge-dismissed';
+const STORAGE_KEY = 'forj:profile-nudge-dismissed';
+/** Pre-rebrand key, still honoured so existing dismissals persist. */
+const LEGACY_STORAGE_KEY = 'workchain:profile-nudge-dismissed';
 
 function computeCompleteness(user: NonNullable<ReturnType<typeof useAuth>['user']>) {
   const isFreelancer = user.role === 'freelancer' || user.role === 'both';
@@ -85,7 +87,10 @@ export function ProfileCompleteness() {
 
   const dismissed = useMemo(() => {
     if (typeof window === 'undefined') return false;
-    return window.localStorage.getItem(STORAGE_KEY) === '1';
+    return (
+      window.localStorage.getItem(STORAGE_KEY) === '1' ||
+      window.localStorage.getItem(LEGACY_STORAGE_KEY) === '1'
+    );
   }, []);
 
   const stats = useMemo(() => (user ? computeCompleteness(user) : null), [user]);
@@ -110,7 +115,7 @@ export function ProfileCompleteness() {
       data-profile-nudge
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      className="relative overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-border-brand)] bg-gradient-to-br from-[var(--color-glow-brand)] via-[var(--color-background-secondary)] to-[var(--color-background-secondary)] p-5"
+      className="relative overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-border-brand)] bg-[var(--color-glow-brand)] p-5"
     >
       <button
         type="button"
@@ -138,7 +143,7 @@ export function ProfileCompleteness() {
           {/* Progress bar */}
           <div className="mt-3 h-1 overflow-hidden rounded-full bg-[var(--color-background-tertiary)]">
             <motion.div
-              className="h-full rounded-full bg-gradient-to-r from-[var(--color-brand-primary)] to-[var(--color-brand-accent)]"
+              className="h-full rounded-full bg-[var(--color-glow-brand)]"
               animate={{ width: `${stats.pct}%` }}
               transition={{ duration: 0.4 }}
             />

@@ -170,7 +170,7 @@ export default function DashboardMessagesPage() {
                     className={cn(
                       'group flex items-center gap-4 rounded-[var(--radius-xl)] border p-4 transition-all',
                       hasUnread
-                        ? 'border-[var(--color-border-brand)] bg-[var(--color-glow-brand)] hover:shadow-[0_0_24px_var(--color-glow-brand-strong)]'
+                        ? 'border-[var(--color-border-brand)] bg-[var(--color-glow-brand)]'
                         : 'border-[var(--color-border-default)] bg-[var(--color-background-secondary)] hover:border-[var(--color-border-strong)]',
                     )}
                   >

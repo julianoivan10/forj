@@ -122,7 +122,7 @@ export function DepositCard() {
                 level="M"
                 marginSize={0}
                 bgColor="#ffffff"
-                fgColor="#14130E"
+                fgColor="#16150F"
               />
             </div>
           </div>
@@ -170,7 +170,7 @@ export function DepositCard() {
                   href={moonpayUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-brand-primary)] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_0_20px_var(--color-glow-brand)] transition-all hover:bg-[#c73e1d] hover:shadow-[0_0_36px_var(--color-glow-brand-strong)]"
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-brand-primary)] px-4 py-2.5 text-sm font-semibold text-[var(--color-on-brand)] transition-all hover:bg-[var(--color-brand-secondary)]"
                 >
                   <CreditCard className="size-4" />
                   Buy USDC with card
@@ -180,7 +180,7 @@ export function DepositCard() {
                   href="https://faucet.circle.com"
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-brand-primary)] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_0_20px_var(--color-glow-brand)] transition-all hover:bg-[#c73e1d] hover:shadow-[0_0_36px_var(--color-glow-brand-strong)]"
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-brand-primary)] px-4 py-2.5 text-sm font-semibold text-[var(--color-on-brand)] transition-all hover:bg-[var(--color-brand-secondary)]"
                 >
                   <Droplet className="size-4" />
                   Claim testnet USDC

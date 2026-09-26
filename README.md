@@ -115,14 +115,18 @@ and the first end-to-end testnet test: [`docs/SETUP.md`](docs/SETUP.md).
 
 | Network | Contract | Address |
 |---|---|---|
-| Base Sepolia | **ForjEscrow** (v2 — 5%/2% split fee) | [`0x09fb654f30637258d30e3f03b06f5370a0cf8954`](https://sepolia.basescan.org/address/0x09fb654f30637258d30e3f03b06f5370a0cf8954#code) |
+| Base Sepolia | **ForjEscrowV3** (explicit on-chain lifecycle; new escrows) | [`0x9813A755Cd6dAA83a9B32dd7222594208365C43b`](https://sepolia.basescan.org/address/0x9813A755Cd6dAA83a9B32dd7222594208365C43b#code) |
+| Base Sepolia | ForjEscrow (v2, legacy: existing escrows only) | [`0x09fb654f30637258d30e3f03b06f5370a0cf8954`](https://sepolia.basescan.org/address/0x09fb654f30637258d30e3f03b06f5370a0cf8954#code) |
 | Base Sepolia | WorkChainEscrow (v1 legacy, frozen) | `0x079fe8805faac09fead18eb56a37967311e4cf8b` |
 | Base Sepolia | USDC (Circle) | `0x036CbD53842c5426634e7929541eC2318f3dCF7e` |
-| Base mainnet | ForjEscrow | _not yet deployed_ |
+| Base mainnet | ForjEscrowV3 | _not deployed: blocked, see [`docs/MAINNET-READINESS.md`](docs/MAINNET-READINESS.md)_ |
 
-The v1 contract is intentionally kept reachable so any in-flight escrow
-from before the migration can still be released or refunded manually. New
-contracts always route to v2.
+New contracts fund ForjEscrowV3. Older escrows stay on the contract they were funded
+under. Escrow docs: [`docs/escrow/ESCROW-V3.md`](docs/escrow/ESCROW-V3.md) (rules and permissions),
+[`docs/escrow/SYNC-AND-RECONCILIATION.md`](docs/escrow/SYNC-AND-RECONCILIATION.md) (what is authoritative),
+[`docs/escrow/DEPLOYMENT-AND-TESTNET.md`](docs/escrow/DEPLOYMENT-AND-TESTNET.md),
+[`docs/DATABASE-MIGRATIONS.md`](docs/DATABASE-MIGRATIONS.md), [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md),
+[`docs/security/ADMIN-KEYS-AND-INCIDENTS.md`](docs/security/ADMIN-KEYS-AND-INCIDENTS.md).
 
 ---
 

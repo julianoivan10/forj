@@ -46,6 +46,14 @@ async function main() {
     );
   }
 
+  // Mainnet guard: the audit (docs/security/) lists design blockers in
+  // ForjEscrow v2. A mainnet deploy must be an explicit, deliberate act.
+  if (network === 'base' && process.env.ALLOW_MAINNET_DEPLOY !== 'true') {
+    throw new Error(
+      'Refusing to deploy to Base mainnet. Resolve the mainnet blockers, get an external audit, then re-run with ALLOW_MAINNET_DEPLOY=true.',
+    );
+  }
+
   const feeRecipient = process.env.PLATFORM_FEE_RECIPIENT;
   if (!feeRecipient || !/^0x[0-9a-fA-F]{40}$/.test(feeRecipient)) {
     throw new Error('PLATFORM_FEE_RECIPIENT env var is missing or not a valid address.');

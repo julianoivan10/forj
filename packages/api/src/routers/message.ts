@@ -12,39 +12,10 @@ import {
   users,
 } from '@forj/db';
 import { z } from 'zod';
+import { isAllowedFileUrl } from '../lib/file-host';
 import { checkRateLimit, RATE_LIMITS } from '../middleware/rate-limit';
 import { notify } from '../services/notifications';
 import { createTRPCRouter, protectedProcedure } from '../trpc';
-
-/**
- * Whitelist of hostnames the message attachment URL can point to.
- * Sole upload paths today are UploadThing (`utfs.io`) and Pinata's
- * public IPFS gateway (`gateway.pinata.cloud`) — same set as
- * `next.config.ts` remotePatterns. Anything else gets rejected to
- * prevent attackers from pasting phishing/malware/`javascript:` URLs
- * as "attachments" that the inbox would surface as clickable links.
- *
- * Add new domains here AFTER vetting them — don't accept arbitrary
- * URLs even if zod `.url()` would parse them. (`z.string().url()`
- * accepts `javascript:`, `data:`, `ftp:`, etc.)
- */
-const ALLOWED_FILE_HOSTS = new Set<string>([
-  'utfs.io',
-  'gateway.pinata.cloud',
-]);
-
-function isAllowedFileUrl(raw: string): boolean {
-  let url: URL;
-  try {
-    url = new URL(raw);
-  } catch {
-    return false;
-  }
-  // Reject any non-https scheme. Blocks `javascript:`, `data:`, plain
-  // `http:`, etc. — even if the hostname happens to match.
-  if (url.protocol !== 'https:') return false;
-  return ALLOWED_FILE_HOSTS.has(url.hostname);
-}
 
 /**
  * Deterministic conversation ID for a pair of users.

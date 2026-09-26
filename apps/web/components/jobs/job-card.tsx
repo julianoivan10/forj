@@ -70,7 +70,7 @@ export function JobCard({ job }: JobCardProps) {
   return (
     <Link
       href={`/jobs/${job.slug}`}
-      className="group flex flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-background-secondary)] transition-all duration-200 hover:border-[var(--color-border-brand)] hover:shadow-[0_0_24px_var(--color-glow-brand)]"
+      className="group flex flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-background-secondary)] transition-all duration-200 hover:border-[var(--color-border-brand)]"
     >
       {/* Cover — image when uploaded, otherwise a Bauhaus generative
           shape pattern keyed off job id so each card is visually distinct
@@ -90,7 +90,7 @@ export function JobCard({ job }: JobCardProps) {
         )}
         {/* Category chip floating on cover */}
         {category ? (
-          <span className="absolute left-3 top-3 inline-flex items-center rounded-[var(--radius-full)] border border-[var(--color-border-default)] bg-[var(--color-background)]/85 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-secondary)] backdrop-blur-md">
+          <span className="absolute left-3 top-3 inline-flex items-center rounded-[var(--radius-full)] border border-[var(--color-border-default)] bg-[var(--color-background)]/85 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">
             {category.label}
           </span>
         ) : null}

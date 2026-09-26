@@ -21,6 +21,11 @@ export const BASE = {
   usdc: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as const,
   /** ForjEscrow registry on Base mainnet. Empty until first deploy. */
   escrow: '' as `0x${string}` | '',
+  /** ForjEscrowV3 on Base mainnet. MUST stay empty until the external audit is done. */
+  escrowV3: '' as `0x${string}` | '',
+  /** Block the V3 contract was deployed in; the log indexer starts here. */
+  escrowV3DeployBlock: 0n,
+  explorer: 'https://basescan.org',
 } as const;
 
 export const BASE_SEPOLIA = {
@@ -43,6 +48,15 @@ export const BASE_SEPOLIA = {
    * NOT referenced by the running app.
    */
   escrow: '0x09fb654f30637258d30e3f03b06f5370a0cf8954' as `0x${string}`,
+  /**
+   * ForjEscrowV3 on Base Sepolia. Deployed 2026-09-24, verified on Basescan.
+   * Record: deployments/baseSepolia-ForjEscrowV3.json. Testnet roles
+   * (owner/arbiter/guardian) are the deployer EOA; move them to Safes
+   * before opening a public testnet.
+   */
+  escrowV3: '0x9813A755Cd6dAA83a9B32dd7222594208365C43b' as `0x${string}` | '',
+  escrowV3DeployBlock: 47249309n,
+  explorer: 'https://sepolia.basescan.org',
 } as const;
 
 export type SupportedChainId = typeof BASE.chainId | typeof BASE_SEPOLIA.chainId;
@@ -59,6 +73,6 @@ export function getAddresses(chainId: number) {
     case BASE_SEPOLIA.chainId:
       return BASE_SEPOLIA;
     default:
-      throw new Error(`Unsupported chainId for WorkChain escrow: ${chainId}`);
+      throw new Error(`Unsupported chainId for Forj escrow: ${chainId}`);
   }
 }

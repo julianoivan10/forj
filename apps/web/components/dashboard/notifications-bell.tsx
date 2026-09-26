@@ -75,7 +75,7 @@ export function NotificationsBell() {
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 exit={{ scale: 0 }}
-                className="absolute -top-0.5 -right-0.5 inline-flex min-w-[18px] items-center justify-center rounded-[var(--radius-full)] bg-[var(--color-brand-primary)] px-1 text-[10px] font-bold text-white shadow-[0_0_8px_var(--color-brand-primary)]"
+                className="absolute -top-0.5 -right-0.5 inline-flex min-w-[18px] items-center justify-center rounded-[var(--radius-full)] bg-[var(--color-brand-primary)] px-1 text-[10px] font-bold text-white"
               >
                 {unread > 99 ? '99+' : unread}
               </motion.span>
@@ -90,7 +90,7 @@ export function NotificationsBell() {
           sideOffset={10}
           className={cn(
             'z-50 w-[380px] overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-default)]',
-            'bg-[var(--color-background-secondary)] shadow-2xl shadow-black/40 backdrop-blur-xl',
+            'bg-[var(--color-background-secondary)]',
             'data-[state=open]:animate-fade-in-up',
           )}
         >
@@ -153,7 +153,7 @@ export function NotificationsBell() {
                         aria-hidden
                         className={cn(
                           'mt-2 size-2 shrink-0 rounded-full',
-                          n.isRead ? 'bg-transparent' : 'bg-[var(--color-brand-primary)] shadow-[0_0_6px_var(--color-brand-primary)]',
+                          n.isRead ? 'bg-transparent' : 'bg-[var(--color-brand-primary)]',
                         )}
                       />
                       {/* Actor avatar */}

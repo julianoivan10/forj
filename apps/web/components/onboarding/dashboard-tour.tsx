@@ -178,7 +178,7 @@ function TourOverlay({ step, index, total, onNext, onPrev, onSkip }: OverlayProp
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.2 }}
-        className="fixed inset-0 z-[80] bg-black/55 backdrop-blur-[2px]"
+        className="fixed inset-0 z-[80] bg-black/55"
         style={overlayStyle}
         onClick={onSkip}
       />
@@ -214,7 +214,7 @@ function TourOverlay({ step, index, total, onNext, onPrev, onSkip }: OverlayProp
         exit={{ opacity: 0, y: -12 }}
         transition={{ type: 'spring', damping: 22, stiffness: 240 }}
         style={popoverStyle}
-        className="fixed z-[82] w-[calc(100vw-2rem)] max-w-md rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-background-secondary)] p-5 shadow-2xl shadow-black/40"
+        className="fixed z-[82] w-[calc(100vw-2rem)] max-w-md rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-background-secondary)] p-5"
       >
         <div className="flex items-start justify-between gap-3">
           <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-brand-primary)]">

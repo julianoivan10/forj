@@ -17,7 +17,7 @@ export async function sendEmail(opts: SendEmailOptions) {
     return { id: 'dev-skipped', skipped: true as const };
   }
   const result = await resend.emails.send({
-    from: `WorkChain <${fromEmail}>`,
+    from: `Forj <${fromEmail}>`,
     to: opts.to,
     subject: opts.subject,
     react: opts.react,

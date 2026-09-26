@@ -1,0 +1,21 @@
+{
+  "contract": "ForjEscrowV3",
+  "network": "baseSepolia",
+  "chainId": 84532,
+  "address": "0x9813A755Cd6dAA83a9B32dd7222594208365C43b",
+  "deployBlock": "47249309",
+  "txHash": "0xc69893de3be4a754fef29a8677ec6f8dd72d57b70389286e92d7af2beff1d753",
+  "deployer": "0xa3b1d4ad2e756571530c9e54d4a5c52eb9e71052",
+  "constructorArgs": [
+    "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    "0xA3B1d4ad2E756571530c9e54D4A5c52eb9E71052",
+    "0x2332373BEB6A13A61bf45881808327406DD9D5e6",
+    "0xA3B1d4ad2E756571530c9e54D4A5c52eb9E71052",
+    "0xA3B1d4ad2E756571530c9e54D4A5c52eb9E71052",
+    "500",
+    "200"
+  ],
+  "gitCommit": "9662235ee6438c62281fb11b1f46af9725ed4c55",
+  "workingTreeDirty": true,
+  "deployedAt": "2026-09-24T16:21:48.968Z"
+}

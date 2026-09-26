@@ -1,24 +1,16 @@
-import { DEFAULT_FEE_BPS } from '@forj/contracts';
-
 export const APP_NAME = 'Forj';
+
+/**
+ * Canonical public origin, without a trailing slash. Vercel env values are
+ * often pasted with one, which produced `https://host//sitemap.xml`.
+ */
+export const SITE_URL = (process.env.NEXT_PUBLIC_APP_URL || 'https://forj-pi.vercel.app').replace(
+  /\/+$/,
+  '',
+);
 export const APP_TAGLINE = 'Work, forged in trust.';
 export const APP_DESCRIPTION =
   'A freelance platform built on Base. Smart-contract escrow, on-chain reputation, and frictionless payouts — without the Web3 jargon.';
-
-/**
- * Platform fee, sourced from `@forj/contracts` so the on-chain default,
- * the API mutation, and the marketing copy can never drift apart. Computed
- * from `DEFAULT_FEE_BPS` (currently 500 bps = 5%) so a single-line change
- * in the contracts package re-flows through every UI surface that imports
- * `PLATFORM_FEE_LABEL`.
- *
- *   PLATFORM_FEE_BPS     = 500     (basis points, raw)
- *   PLATFORM_FEE_PERCENT = '5'     (string, no `%`; append where used)
- *   PLATFORM_FEE_LABEL   = '5%'    (ready-to-render)
- */
-export const PLATFORM_FEE_BPS = DEFAULT_FEE_BPS;
-export const PLATFORM_FEE_PERCENT = (DEFAULT_FEE_BPS / 100).toString();
-export const PLATFORM_FEE_LABEL = `${PLATFORM_FEE_PERCENT}%`;
 
 export const AUTO_RELEASE_DAYS = 7;
 

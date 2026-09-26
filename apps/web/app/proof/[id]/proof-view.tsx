@@ -1,5 +1,6 @@
 'use client';
 
+import { IS_MAINNET } from '@/lib/chain';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
@@ -94,7 +95,7 @@ function ProofContent({
       <motion.header
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        className="overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-border-brand)] bg-gradient-to-br from-[var(--color-glow-brand)] via-[var(--color-background-secondary)] to-[var(--color-background-secondary)] p-6 sm:p-8"
+        className="overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-border-brand)] bg-[var(--color-glow-brand)] p-6 sm:p-8"
       >
         <div className="flex items-center gap-2 text-[var(--color-brand-primary)]">
           <ShieldCheck className="size-5" />
@@ -562,7 +563,7 @@ function useExplorerBase(): string {
   // Decoupled from the wallet hook chain — this page can render without a
   // wallet at all (anonymous visitor). We read the env var the deployment
   // script wrote to decide which network's explorer to link.
-  if (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_CHAIN_ID === '8453') {
+  if (IS_MAINNET) {
     return 'https://basescan.org';
   }
   return 'https://sepolia.basescan.org';

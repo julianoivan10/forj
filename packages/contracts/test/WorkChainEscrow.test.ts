@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import hre from 'hardhat';
 import { parseUnits, getAddress } from 'viem';
-import { loadFixture } from '@nomicfoundation/hardhat-network-helpers';
+import { loadFixture, time } from '@nomicfoundation/hardhat-network-helpers';
 
 /**
  * WorkChainEscrow test suite.
@@ -66,7 +66,7 @@ async function fundOne(
   amountUsdc: string,
 ) {
   const amount = parseUnits(amountUsdc, 6);
-  const now = BigInt(Math.floor(Date.now() / 1000));
+  const now = BigInt(await time.latest());
   const deadline = now + 30n * ONE_DAY;
 
   await ctx.escrow.write.fund(
@@ -157,7 +157,7 @@ describe('WorkChainEscrow', () => {
 
     it('reverts when client funds themselves', async () => {
       const ctx = await loadFixture(deployFixture);
-      const now = BigInt(Math.floor(Date.now() / 1000));
+      const now = BigInt(await time.latest());
       await expect(
         ctx.escrow.write.fund(
           [ctx.client.account.address, parseUnits('100', 6), now + ONE_DAY],
@@ -168,7 +168,7 @@ describe('WorkChainEscrow', () => {
 
     it('reverts on amount = 0', async () => {
       const ctx = await loadFixture(deployFixture);
-      const now = BigInt(Math.floor(Date.now() / 1000));
+      const now = BigInt(await time.latest());
       await expect(
         ctx.escrow.write.fund(
           [ctx.freelancer.account.address, 0n, now + ONE_DAY],
@@ -180,7 +180,7 @@ describe('WorkChainEscrow', () => {
     it('reverts when paused', async () => {
       const ctx = await loadFixture(deployFixture);
       await ctx.escrow.write.pause();
-      const now = BigInt(Math.floor(Date.now() / 1000));
+      const now = BigInt(await time.latest());
       await expect(
         ctx.escrow.write.fund(
           [ctx.freelancer.account.address, parseUnits('100', 6), now + ONE_DAY],

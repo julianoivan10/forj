@@ -1,5 +1,5 @@
 import { TRPCError } from '@trpc/server';
-import { and, contracts, desc, eq, inArray, jobs, or, reviews, sql, users } from '@forj/db';
+import { and, contracts, desc, eq, escrowTransactions, inArray, jobs, or, reviews, sql, users } from '@forj/db';
 import { z } from 'zod';
 import {
   EscrowVerificationError,
@@ -7,7 +7,23 @@ import {
   verifyEscrowFunding,
   verifyEscrowRelease,
 } from '../services/escrow';
+import { isAllowedFileUrl } from '../lib/file-host';
 import { notify } from '../services/notifications';
+import { isEscrowV3Enabled } from '../escrow-v3';
+
+/**
+ * The procedures below are the legacy ForjEscrow v2 flow. V3 contracts
+ * change state only through confirmed chain events (routers/escrow.ts), so
+ * any DB-only transition on a V3 row is refused here.
+ */
+function assertLegacyEscrow(contract: { escrowVersion: 'v2' | 'v3' }) {
+  if (contract.escrowVersion === 'v3') {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'This contract uses the on-chain escrow. Complete this step with your wallet.',
+    });
+  }
+}
 import { createTRPCRouter, protectedProcedure, publicProcedure } from '../trpc';
 
 /**
@@ -20,7 +36,13 @@ const AUTO_RELEASE_DAYS = 7;
 const submitWorkInput = z.object({
   contractId: z.string().uuid(),
   message: z.string().min(10).max(5000),
-  files: z.array(z.string().url()).max(10).optional(),
+  // Same host allowlist as every other rendered URL — the client opens
+  // these as "Attachment" links, so arbitrary hosts would be a phishing
+  // vector dressed up as the freelancer's deliverable.
+  files: z
+    .array(z.string().url().refine(isAllowedFileUrl, 'Attachments must be uploaded through Forj.'))
+    .max(10)
+    .optional(),
 });
 
 const requestRevisionInput = z.object({
@@ -109,7 +131,7 @@ export const contractRouter = createTRPCRouter({
    * a recruiter, a follower on Twitter) can hit `/proof/<id>` and see — with
    * cryptographic backing — that real work was paid for via real on-chain
    * settlement. The page links every claim straight to Basescan so trust
-   * doesn't require trusting WorkChain at all.
+   * doesn't require trusting Forj at all.
    *
    * Visibility rules:
    *   - Only contracts in `completed` status are exposed (work + payment done).
@@ -225,6 +247,16 @@ export const contractRouter = createTRPCRouter({
           message: 'Terms can only be edited before escrow is funded',
         });
       }
+      const pendingTx = await ctx.db.query.escrowTransactions.findFirst({
+        where: and(eq(escrowTransactions.contractId, contract.id), eq(escrowTransactions.status, 'pending')),
+        columns: { id: true },
+      });
+      if (pendingTx) {
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: 'A funding transaction is still confirming. Terms can no longer change.',
+        });
+      }
       // Deadline must be in the future. The chain enforces the same on
       // `fund()` so let's catch it client-side too.
       if (input.deliveryDeadline.getTime() <= Date.now()) {
@@ -255,12 +287,23 @@ export const contractRouter = createTRPCRouter({
   getById: protectedProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
+      // Party columns are projected: the counterparty must never receive
+      // the other side's email, privyId or notification preferences.
+      const partyColumns = {
+        id: true,
+        username: true,
+        displayName: true,
+        avatarUrl: true,
+        walletAddress: true,
+        workScore: true,
+        badgeTier: true,
+      } as const;
       const contract = await ctx.db.query.contracts.findFirst({
         where: eq(contracts.id, input.id),
         with: {
           job: true,
-          client: true,
-          freelancer: true,
+          client: { columns: partyColumns },
+          freelancer: { columns: partyColumns },
           proposal: true,
         },
       });
@@ -277,7 +320,7 @@ export const contractRouter = createTRPCRouter({
    *
    * Two paths:
    *  - **crypto**: caller supplies `txHash` + `onChainContractId` + `chainId`
-   *    after their wallet signed `WorkChainEscrow.fund()`. The backend pulls
+   *    after their wallet signed `ForjEscrow.fund()`. The backend pulls
    *    the receipt, decodes the `EscrowFunded` event, and bails if anything
    *    doesn't match. Only then does the DB row flip to `in_progress`.
    *  - **fiat**: legacy off-chain path (Phase 3A). No verification, just a
@@ -308,13 +351,29 @@ export const contractRouter = createTRPCRouter({
           message: `Cannot fund a contract that is already ${contract.status}`,
         });
       }
+      // The fiat path flips the row to "funded" with no money moving, which
+      // lets a client fake escrow (and later fake completion + reputation).
+      // Until a verified off-chain processor exists, only verified on-chain
+      // funding is accepted — regardless of what the caller claims.
+      if (input.paymentMethod !== 'crypto' || contract.paymentMethod !== 'crypto') {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Only on-chain USDC escrow funding is supported.',
+        });
+      }
+      if (isEscrowV3Enabled() || contract.escrowVersion === 'v3') {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'New escrows use ForjEscrowV3. Fund through escrow.prepareFunding.',
+        });
+      }
 
       const now = new Date();
       let escrowTxHash: string | null = null;
       let onChainContractId: number | null = null;
       let escrowContractAddress: string | null = null;
 
-      if (input.paymentMethod === 'crypto') {
+      {
         const clientWallet = contract.client.walletAddress;
         const freelancerWallet = contract.freelancer.walletAddress;
         if (!clientWallet || !hex0x.test(clientWallet)) {
@@ -373,12 +432,29 @@ export const contractRouter = createTRPCRouter({
           }
           throw err;
         }
-      } else if (input.txHash) {
-        // Fiat path can still record an off-chain reference (Stripe charge id
-        // etc) for audit. No verification.
-        escrowTxHash = input.txHash;
       }
 
+      // Replay guard: one on-chain escrow backs exactly one contract row.
+      // Without this, a client with two same-amount contracts for the same
+      // freelancer could fund once and submit the same tx for both.
+      const alreadyLinked = await ctx.db.query.contracts.findFirst({
+        where: or(
+          eq(contracts.escrowTxHash, escrowTxHash!),
+          and(
+            eq(contracts.escrowContractAddress, escrowContractAddress ?? ''),
+            eq(contracts.onChainContractId, onChainContractId!),
+          ),
+        ),
+        columns: { id: true },
+      });
+      if (alreadyLinked && alreadyLinked.id !== contract.id) {
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: 'This escrow transaction is already linked to another contract.',
+        });
+      }
+
+      // Conditional update so two concurrent calls can't both succeed.
       const [updated] = await ctx.db
         .update(contracts)
         .set({
@@ -388,8 +464,14 @@ export const contractRouter = createTRPCRouter({
           onChainContractId,
           escrowContractAddress,
         })
-        .where(eq(contracts.id, contract.id))
+        .where(and(eq(contracts.id, contract.id), eq(contracts.status, 'created')))
         .returning();
+      if (!updated) {
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: 'Contract state changed while funding. Refresh and try again.',
+        });
+      }
 
       const clientName = partyName(ctx.user);
       await notify({
@@ -428,6 +510,7 @@ export const contractRouter = createTRPCRouter({
       if (contract.freelancerId !== ctx.user.id) {
         throw new TRPCError({ code: 'FORBIDDEN', message: 'Only the freelancer can submit work' });
       }
+      assertLegacyEscrow(contract);
       if (contract.status !== 'in_progress' && contract.status !== 'revision_requested') {
         throw new TRPCError({
           code: 'BAD_REQUEST',
@@ -491,7 +574,7 @@ export const contractRouter = createTRPCRouter({
 
   /**
    * Client approves the submission. Two paths:
-   *  - **crypto**: caller supplies `txHash` from `WorkChainEscrow.release()`.
+   *  - **crypto**: caller supplies `txHash` from `ForjEscrow.release()`.
    *    Backend verifies `Released` event, records `releaseTxHash`, and
    *    flips status. Without a verified release tx the DB never records the
    *    contract as completed — this prevents an attacker from marking
@@ -511,6 +594,7 @@ export const contractRouter = createTRPCRouter({
       if (contract.clientId !== ctx.user.id) {
         throw new TRPCError({ code: 'FORBIDDEN', message: 'Only the client can approve this contract' });
       }
+      assertLegacyEscrow(contract);
       if (contract.status !== 'submitted') {
         throw new TRPCError({
           code: 'BAD_REQUEST',
@@ -518,9 +602,19 @@ export const contractRouter = createTRPCRouter({
         });
       }
 
+      // Completion bumps public reputation (totalEarned / jobs completed) and
+      // unlocks the public proof page, so it must be backed by a verified
+      // on-chain release — never by a bare "fiat" status flip.
+      if (input.paymentMethod !== 'crypto' || contract.paymentMethod !== 'crypto') {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Approval requires an on-chain escrow release.',
+        });
+      }
+
       let releaseTxHash: string | null = null;
 
-      if (input.paymentMethod === 'crypto') {
+      {
         if (contract.onChainContractId == null) {
           throw new TRPCError({
             code: 'BAD_REQUEST',
@@ -553,6 +647,8 @@ export const contractRouter = createTRPCRouter({
       }
 
       const now = new Date();
+      // Conditional on the prior status: a concurrent approve/claim pair
+      // would otherwise both pass the read above and double-count earnings.
       const [updated] = await ctx.db
         .update(contracts)
         .set({
@@ -560,8 +656,14 @@ export const contractRouter = createTRPCRouter({
           completedAt: now,
           releaseTxHash,
         })
-        .where(eq(contracts.id, contract.id))
+        .where(and(eq(contracts.id, contract.id), eq(contracts.status, 'submitted')))
         .returning();
+      if (!updated) {
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: 'Contract state changed while approving. Refresh and try again.',
+        });
+      }
 
       // Bump freelancer counters + close the underlying job.
       await Promise.all([
@@ -676,7 +778,9 @@ export const contractRouter = createTRPCRouter({
       await notify({
         userId: contract.clientId,
         actorId: ctx.user.id,
-        type: 'contract_submitted',
+        // In-app only: `contract_submitted` emails a "review within 7 days"
+        // notice, which is wrong for an off-chain milestone update.
+        type: 'system',
         title: `Milestone ${input.milestoneIndex + 1} submitted`,
         body: `${freelancerName} submitted "${contract.milestones[input.milestoneIndex]?.title}" on "${contract.title}".`,
         entityType: 'contract',
@@ -725,6 +829,16 @@ export const contractRouter = createTRPCRouter({
       if (contract.clientId !== ctx.user.id) {
         throw new TRPCError({ code: 'FORBIDDEN' });
       }
+      if (
+        contract.status !== 'in_progress' &&
+        contract.status !== 'submitted' &&
+        contract.status !== 'revision_requested'
+      ) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: `Milestones can't be approved in ${contract.status} state`,
+        });
+      }
       if (!contract.milestones?.length) {
         throw new TRPCError({
           code: 'BAD_REQUEST',
@@ -765,7 +879,9 @@ export const contractRouter = createTRPCRouter({
       await notify({
         userId: contract.freelancerId,
         actorId: ctx.user.id,
-        type: 'contract_funded', // closest existing event; reuse for now
+        // `system` = in-app only. Reusing `contract_funded` here sent the
+        // freelancer an "Escrow funded" email on every milestone approval.
+        type: 'system',
         title: `Milestone ${input.milestoneIndex + 1} approved`,
         body: `${clientName} approved "${target.title}". Continue with the next milestone.`,
         entityType: 'contract',
@@ -783,7 +899,7 @@ export const contractRouter = createTRPCRouter({
   /**
    * Permissionless claim after the auto-release window.
    *
-   * Freelancer (or anyone) calls `WorkChainEscrow.claimAfterTimeout()` once
+   * Freelancer (or anyone) calls `ForjEscrow.claimAfterTimeout()` once
    * `autoReleaseAt` has passed. The contract emits `Released` exactly like
    * a normal release, so we re-use the same verifier. The DB ends up in the
    * same `completed` state — only difference is which wallet paid the gas.
@@ -814,6 +930,7 @@ export const contractRouter = createTRPCRouter({
           message: 'Only the freelancer can claim a timed-out escrow',
         });
       }
+      assertLegacyEscrow(contract);
       if (contract.status !== 'submitted') {
         throw new TRPCError({
           code: 'BAD_REQUEST',
@@ -869,8 +986,14 @@ export const contractRouter = createTRPCRouter({
           completedAt: now,
           releaseTxHash: input.txHash,
         })
-        .where(eq(contracts.id, contract.id))
+        .where(and(eq(contracts.id, contract.id), eq(contracts.status, 'submitted')))
         .returning();
+      if (!updated) {
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: 'Contract state changed while claiming. Refresh and try again.',
+        });
+      }
 
       await Promise.all([
         ctx.db
@@ -921,6 +1044,7 @@ export const contractRouter = createTRPCRouter({
       if (contract.clientId !== ctx.user.id) {
         throw new TRPCError({ code: 'FORBIDDEN', message: 'Only the client can request revisions' });
       }
+      assertLegacyEscrow(contract);
       if (contract.status !== 'submitted') {
         throw new TRPCError({
           code: 'BAD_REQUEST',
@@ -976,6 +1100,16 @@ export const contractRouter = createTRPCRouter({
           message: 'Funded contracts must be disputed instead of cancelled',
         });
       }
+      const pendingFund = await ctx.db.query.escrowTransactions.findFirst({
+        where: and(eq(escrowTransactions.contractId, contract.id), eq(escrowTransactions.status, 'pending')),
+        columns: { id: true },
+      });
+      if (pendingFund) {
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: 'A funding transaction is still confirming. Wait for it before cancelling.',
+        });
+      }
 
       const now = new Date();
       const [updated] = await ctx.db
@@ -1028,6 +1162,7 @@ export const contractRouter = createTRPCRouter({
         contract.clientId === ctx.user.id || contract.freelancerId === ctx.user.id;
       if (!isParty) throw new TRPCError({ code: 'FORBIDDEN' });
 
+      assertLegacyEscrow(contract);
       const disputable = ['in_progress', 'submitted', 'revision_requested'] as const;
       if (!disputable.includes(contract.status as (typeof disputable)[number])) {
         throw new TRPCError({

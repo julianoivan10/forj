@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next';
+import { SITE_URL } from '@/lib/constants';
 
 /**
  * Robots policy.
@@ -22,9 +23,10 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: '*',
         allow: '/',
-        disallow: ['/admin/', '/api/', '/dashboard/'],
+        disallow: ['/admin/', '/api/', '/dashboard/', '/preview/'],
       },
     ],
-    sitemap: `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://forj.app'}/sitemap.xml`,
+    sitemap: `${SITE_URL}/sitemap.xml`,
+    host: SITE_URL,
   };
 }

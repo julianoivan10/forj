@@ -249,7 +249,7 @@ export default function DashboardJobDetailPage() {
                   className={cn(
                     'flex flex-col gap-4 rounded-[var(--radius-xl)] border bg-[var(--color-background-secondary)] p-5',
                     p.status === 'accepted'
-                      ? 'border-[var(--color-border-brand)] shadow-[0_0_24px_var(--color-glow-brand)]'
+                      ? 'border-[var(--color-border-brand)]'
                       : 'border-[var(--color-border-default)]',
                   )}
                 >

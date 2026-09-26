@@ -168,7 +168,7 @@ function ServiceCard({
         className="group relative flex h-full flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-background-secondary)] transition-colors hover:border-[var(--color-border-brand)]"
       >
         {/* Cover */}
-        <div className="relative aspect-[16/10] w-full overflow-hidden bg-gradient-to-br from-[var(--color-background-tertiary)] to-[var(--color-background-elevated)]">
+        <div className="relative aspect-[16/10] w-full overflow-hidden bg-[var(--color-glow-brand)]">
           {service.coverImageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img

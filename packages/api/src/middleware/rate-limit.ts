@@ -17,6 +17,13 @@ type RateLimitConfig = {
 
 const limiters = new Map<string, Ratelimit>();
 
+let warnedDisabled = false;
+
+/** First IP in x-forwarded-for (set by Vercel), for unauthenticated endpoints. */
+export function clientIp(headers: Headers): string {
+  return headers.get('x-forwarded-for')?.split(',')[0]?.trim() || headers.get('x-real-ip') || 'unknown';
+}
+
 function getLimiter(name: string, config: RateLimitConfig): Ratelimit | null {
   if (!redis) return null;
   const key = `${name}:${config.requests}:${config.window}`;
@@ -26,7 +33,7 @@ function getLimiter(name: string, config: RateLimitConfig): Ratelimit | null {
       redis,
       limiter: Ratelimit.slidingWindow(config.requests, config.window),
       analytics: true,
-      prefix: `workchain:ratelimit:${name}`,
+      prefix: `forj:ratelimit:${name}`,
     });
     limiters.set(key, limiter);
   }
@@ -39,7 +46,16 @@ export async function checkRateLimit(
   config: RateLimitConfig,
 ): Promise<void> {
   const limiter = getLimiter(name, config);
-  if (!limiter) return;
+  if (!limiter) {
+    // Fails open so local dev works without Redis, but production must know.
+    if (process.env.NODE_ENV === 'production' && !warnedDisabled) {
+      warnedDisabled = true;
+      console.error(
+        JSON.stringify({ level: 'error', event: 'ratelimit.disabled', message: 'UPSTASH_REDIS_REST_URL/TOKEN missing: rate limiting is OFF' }),
+      );
+    }
+    return;
+  }
 
   const { success, remaining, reset } = await limiter.limit(identifier);
 
@@ -77,4 +93,10 @@ export const RATE_LIMITS = {
   // client-side actions that flood differently. 30/h covers heavy
   // shoppers; lower would frustrate legitimate users browsing services.
   servicePurchase: { requests: 30, window: '1 h' } satisfies RateLimitConfig,
+  // Recording escrow transactions. Each call triggers RPC work; 30 per
+  // 10 minutes covers every legitimate lifecycle step plus retries.
+  escrowTx: { requests: 30, window: '10 m' } satisfies RateLimitConfig,
+  // Unauthenticated webhook / public write endpoints, keyed by IP.
+  webhook: { requests: 120, window: '1 m' } satisfies RateLimitConfig,
+  jobView: { requests: 60, window: '1 m' } satisfies RateLimitConfig,
 } as const;

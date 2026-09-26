@@ -40,17 +40,27 @@ const LEGACY_STORAGE_KEY = 'workchain:theme';
 
 function getSystemTheme(): ResolvedTheme {
   if (typeof window === 'undefined') return 'dark';
-  return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
+
+let switchTimer: ReturnType<typeof setTimeout> | undefined;
 
 function applyTheme(resolved: ResolvedTheme) {
   if (typeof document === 'undefined') return;
-  document.documentElement.setAttribute('data-theme', resolved);
+  const root = document.documentElement;
+  // Colour transitions are enabled only for the duration of an actual
+  // switch (see `.theme-switching` in theme.css), never on first paint.
+  if (root.getAttribute('data-theme') !== resolved) {
+    root.classList.add('theme-switching');
+    clearTimeout(switchTimer);
+    switchTimer = setTimeout(() => root.classList.remove('theme-switching'), 250);
+  }
+  root.setAttribute('data-theme', resolved);
 }
 
 export function ThemeProvider({
   children,
-  defaultTheme = 'dark',
+  defaultTheme = 'system',
 }: {
   children: React.ReactNode;
   defaultTheme?: ThemePreference;
@@ -131,6 +141,6 @@ export function ThemeScript() {
   // Inline reader checks both keys — forj first, legacy workchain second —
   // so the very first paint already uses the user's saved preference even
   // if it lives under the old key.
-  const code = `(function(){try{var pref=localStorage.getItem('${STORAGE_KEY}')||localStorage.getItem('${LEGACY_STORAGE_KEY}');var resolved=pref==='light'||pref==='dark'?pref:(window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',resolved);}catch(_){document.documentElement.setAttribute('data-theme','dark');}})();`;
+  const code = `(function(){try{var pref=localStorage.getItem('${STORAGE_KEY}')||localStorage.getItem('${LEGACY_STORAGE_KEY}');var resolved=pref==='light'||pref==='dark'?pref:(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',resolved);}catch(_){document.documentElement.setAttribute('data-theme','light');}})();`;
   return <script dangerouslySetInnerHTML={{ __html: code }} />;
 }

@@ -75,7 +75,7 @@ function ArticleCard({ post }: { post: ListItem }) {
     >
       {/* Cover. Falls back to a neutral gradient so cards without an
           image still feel intentional rather than empty. */}
-      <div className="relative aspect-[16/9] w-full overflow-hidden bg-gradient-to-br from-[var(--color-background-tertiary)] to-[var(--color-background-elevated)]">
+      <div className="relative aspect-[16/9] w-full overflow-hidden bg-[var(--color-glow-brand)]">
         {post.coverImageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img

@@ -1,292 +1,120 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import Image from 'next/image';
-import {
-  LayoutDashboard,
-  Briefcase,
-  FileText,
-  FileSignature,
-  Globe,
-  MessageSquare,
-  Bell,
-  Bookmark,
-  Sparkles,
-  Settings,
-  User,
-  ChevronLeft,
-} from 'lucide-react';
-import { useAuth, hasPrivy } from '@/hooks/use-auth';
-import { api } from '@/lib/trpc/client';
+import { ArrowUpRight } from 'lucide-react';
+import { useAuth } from '@/hooks/use-auth';
 import { useT } from '@/lib/i18n/provider';
-import { ModeSwitcher } from '@/components/dashboard/mode-switcher';
+import { api } from '@/lib/trpc/client';
 import { cn } from '@/lib/utils';
+import { ModeSwitcher } from '@/components/dashboard/mode-switcher';
+import { NetworkIndicator } from '@/components/dashboard/network-indicator';
+import { isActive, resolveHref, sectionsFor, type Mode } from '@/components/dashboard/nav-config';
+
+/** Unread counts for nav badges, shared by the rail and the mobile bar. */
+export function useInboxCounts() {
+  const { user } = useAuth();
+  const summary = api.inbox.summary.useQuery(undefined, {
+    enabled: Boolean(user?.id),
+    refetchInterval: user?.id ? 25_000 : false,
+    refetchOnWindowFocus: true,
+  });
+  return {
+    messages: summary.data?.messages ?? 0,
+    notifications: summary.data?.notifications ?? 0,
+  };
+}
+
+export function Wordmark({ href = '/' }: { href?: string }) {
+  return (
+    <Link href={href} className="inline-flex items-center gap-2.5" aria-label="Forj home">
+      <Image src="/logo.svg" alt="" width={24} height={24} className="size-6" />
+      <span className="font-display text-[19px] font-semibold tracking-[-0.03em] text-[var(--color-text-primary)]">Forj</span>
+    </Link>
+  );
+}
 
 /**
- * Mode-aware group visibility. We filter whole *groups* (not individual
- * items) by mode — that way "Saved Jobs" lives under the same Work
- * header it semantically belongs to (freelancer perspective), and
- * "Saved Services" sits under Hiring (client perspective). In `both`
- * mode the user sees BOTH groups, which is the whole point of Both —
- * a visible split between hiring activity and freelancing activity.
+ * Desktop navigation rail. Text-first: section labels in mono, items as
+ * plain words with an accent rule on the active one. No icon grid, no
+ * filled pills.
  */
-type Mode = 'client' | 'freelancer' | 'both';
-// Group visibility per mode. `contracts` is intentionally NOT a
-// standalone group anymore — it lives inside whichever work group is
-// visible (Hiring for clients, Work for freelancers). That removes the
-// orphan "Contracts" row that floated between Work and Inbox without a
-// header. In `both` mode (legacy enum value, no longer user-selectable),
-// Contracts appears under Hiring to keep it deterministic.
-const GROUPS_BY_MODE: Record<Mode, Set<string>> = {
-  client: new Set(['overview', 'hiring', 'inbox', 'account']),
-  freelancer: new Set(['overview', 'work', 'inbox', 'account']),
-  both: new Set(['overview', 'hiring', 'work', 'inbox', 'account']),
-};
-
-interface NavItem {
-  /** i18n key resolved at render time. e.g. `sidebar.myJobs`. */
-  labelKey: string;
-  href: string;
-  icon: React.ComponentType<{ className?: string }>;
-  badgeKey?: 'messages' | 'notifications';
-  /** Optional tour-target hook so `dashboard-tour.tsx` can highlight
-   *  this row without relying on `href` selectors that change with
-   *  routing renames. */
-  dataTour?: string;
-}
-
-interface NavGroup {
-  /** Stable id used by `GROUPS_BY_MODE` to decide visibility. */
-  id: string;
-  /** i18n key for the section header; null hides the header. */
-  titleKey: string | null;
-  items: NavItem[];
-}
-
-// Grouped navigation. Each group renders with a SMALL CAPS header above
-// it (except headerless ones) and a 4px gap between groups. Labels
-// reference i18n keys (`sidebar.*`) — resolved per-render so switching
-// language re-renders with the new strings without a reload.
-//
-// IMPORTANT: groups are split by *perspective*, not by feature. "My
-// Jobs" and "Saved Services" both live under HIRING (client-side
-// affordances). "My Proposals", "My Services", "Saved Jobs" live under
-// WORK (freelancer-side). This is the structural fix for the earlier
-// bug where "Saved Jobs" was mis-nested as a sub-item of "My Jobs" —
-// it never belonged there because they're for opposite roles.
-const NAV_GROUPS: NavGroup[] = [
-  {
-    id: 'overview',
-    titleKey: null,
-    items: [{ labelKey: 'sidebar.overview', href: '/dashboard', icon: LayoutDashboard }],
-  },
-  {
-    // Hiring group — client perspective. Contracts lives here as the
-    // terminal step (active engagements from posted jobs). Putting it
-    // inside the group instead of floating below avoids the orphan
-    // row that had no header above it.
-    id: 'hiring',
-    titleKey: 'sidebar.hiring',
-    items: [
-      { labelKey: 'sidebar.myJobs', href: '/dashboard/jobs', icon: Briefcase },
-      { labelKey: 'sidebar.savedServices', href: '/dashboard/saved-services', icon: Bookmark },
-      { labelKey: 'sidebar.contracts', href: '/dashboard/contracts', icon: FileSignature },
-    ],
-  },
-  {
-    // Work group — freelancer perspective. Same pattern: Contracts is
-    // the terminal step (active engagements from accepted proposals).
-    // Single Contracts row in the DOM either way — GROUPS_BY_MODE picks
-    // which group is rendered, and in `both` mode both groups render
-    // but the second Contracts row is the same /dashboard/contracts
-    // page, so it's fine for either link to be the entry point.
-    id: 'work',
-    titleKey: 'sidebar.work',
-    items: [
-      { labelKey: 'sidebar.myProposals', href: '/dashboard/proposals', icon: FileText },
-      { labelKey: 'sidebar.myServices', href: '/dashboard/services', icon: Sparkles },
-      { labelKey: 'sidebar.savedJobs', href: '/dashboard/saved', icon: Bookmark, dataTour: 'sidebar-saved' },
-      { labelKey: 'sidebar.contracts', href: '/dashboard/contracts', icon: FileSignature },
-    ],
-  },
-  {
-    id: 'inbox',
-    titleKey: 'sidebar.inbox',
-    items: [
-      { labelKey: 'sidebar.messages', href: '/dashboard/messages', icon: MessageSquare, badgeKey: 'messages' },
-      { labelKey: 'sidebar.notifications', href: '/dashboard/notifications', icon: Bell, badgeKey: 'notifications' },
-    ],
-  },
-  {
-    id: 'account',
-    titleKey: 'sidebar.account',
-    items: [
-      { labelKey: 'sidebar.settings', href: '/dashboard/settings', icon: Settings, dataTour: 'sidebar-settings' },
-    ],
-  },
-];
-
-function SidebarContent() {
+export function DashboardSidebar() {
   const pathname = usePathname();
   const { user } = useAuth();
   const t = useT();
-
-  // Default `client` when user/role is still loading. Was `'both'`
-  // historically, but that flashed every nav group during auth load
-  // — visually noisy on new tabs. Clients are the more common entry
-  // point (browsing > applying), so client perspective is the safer
-  // brief flash. Legacy users with role `'both'` still see all groups
-  // because GROUPS_BY_MODE.both is intentionally retained.
+  const counts = useInboxCounts();
   const mode = (user?.role ?? 'client') as Mode;
-  const visibleGroups = NAV_GROUPS.filter((g) => GROUPS_BY_MODE[mode].has(g.id));
-
-  const isAuthed = Boolean(user?.id);
-  // One poll for both badges. `inbox.summary` runs the two COUNT(*)
-  // queries in parallel server-side and returns them together — same
-  // freshness as before but half the auth + HTTP overhead. 25s sits
-  // between the previous 20s (messages) and 30s (notifications) — a
-  // compromise that's snappy for chat without spamming the API.
-  const inboxSummary = api.inbox.summary.useQuery(undefined, {
-    enabled: isAuthed,
-    refetchInterval: isAuthed ? 25_000 : false,
-    refetchOnWindowFocus: true,
-  });
-
-  const badgeCounts: Record<string, number> = {
-    messages: inboxSummary.data?.messages ?? 0,
-    notifications: inboxSummary.data?.notifications ?? 0,
-  };
+  const username = user?.username ?? null;
 
   return (
-    <div className="flex h-full flex-col">
-      {/* Logo */}
-      <div className="flex h-16 items-center gap-2.5 border-b border-[var(--color-border-default)] px-5">
-        <Link href="/" className="flex items-center gap-2.5" aria-label="Home">
-          <Image src="/logo.svg" alt="" width={28} height={28} className="size-7" />
-          <span className="font-display text-lg font-bold tracking-tight text-[var(--color-text-primary)]">
-            For<span className="text-[var(--color-brand-primary)]">j</span>
-          </span>
-        </Link>
+    <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-[var(--color-border-default)] bg-[var(--color-background)] lg:flex">
+      <div className="flex h-14 items-center border-b border-[var(--color-rule)] px-5">
+        <Wordmark href="/dashboard" />
       </div>
 
-      {/* Mode switcher — sits above the nav so users see their
-          current perspective FIRST. Hidden if user data isn't loaded
-          yet (avoids flash of empty mode badge). */}
       {user ? (
-        <div className="px-3 pt-3">
+        <div className="border-b border-[var(--color-border-default)] px-3 py-3">
           <ModeSwitcher />
         </div>
       ) : null}
 
-      {/* Nav groups */}
-      <nav className="flex-1 overflow-y-auto p-3">
-        {visibleGroups.map((group, gi) => (
-          <div key={gi} className={cn(gi > 0 && 'mt-5')}>
-            {group.titleKey ? (
-              <p className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--color-text-tertiary)]">
-                {t(group.titleKey)}
-              </p>
-            ) : null}
-            <div className="space-y-1">
-              {group.items.map((item) => {
-                const isActive =
-                  pathname === item.href ||
-                  (item.href !== '/dashboard' && pathname.startsWith(item.href));
-                const badgeCount = item.badgeKey ? badgeCounts[item.badgeKey] ?? 0 : 0;
+      <nav aria-label="Workspace" className="flex-1 overflow-y-auto px-3 py-4">
+        {sectionsFor(mode).map((section) => (
+          <div key={section.key} className="mb-5 last:mb-0">
+            <p className="label-mono px-3 pb-1.5">{t(section.titleKey)}</p>
+            <ul>
+              {section.items.map((item) => {
+                const href = resolveHref(item, username);
+                const active = isActive(item, href, pathname);
+                const badge = item.badge ? counts[item.badge] : 0;
                 return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    data-tour={item.dataTour}
-                    className={cn(
-                      // Distinctive nav item: a vermillion slab marker on the
-                      // left edge appears for the active item. Bauhaus cue —
-                      // the same anvil slab idea from the logo, now a tiny
-                      // accent that reads as "you are here". Hover state
-                      // shows a faded version of the same slab so the
-                      // transition feels mechanical, not animated soup.
-                      'group relative flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm font-medium transition-all',
-                      isActive
-                        ? 'bg-[var(--color-brand-primary)]/10 text-[var(--color-brand-primary)]'
-                        : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-text-primary)]/[0.04] hover:text-[var(--color-text-primary)]',
-                    )}
-                  >
-                    <span
-                      aria-hidden
+                  <li key={item.key}>
+                    <Link
+                      href={href}
+                      data-tour={item.dataTour}
+                      aria-current={active ? 'page' : undefined}
                       className={cn(
-                        'absolute left-0 top-1/2 -translate-y-1/2 rounded-r-full bg-[var(--color-brand-primary)] transition-all',
-                        isActive
-                          ? 'h-5 w-[3px] opacity-100'
-                          : 'h-3 w-[2px] opacity-0 group-hover:opacity-50',
+                        'relative flex min-h-9 items-center justify-between gap-3 px-3 text-[14px] transition-colors',
+                        active
+                          ? 'font-semibold text-[var(--color-text-primary)]'
+                          : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]',
                       )}
-                    />
-                    <item.icon
-                      className={cn(
-                        'size-[18px]',
-                        isActive ? 'text-[var(--color-brand-primary)]' : 'opacity-60',
-                      )}
-                    />
-                    <span className="flex-1">{t(item.labelKey)}</span>
-                    {badgeCount > 0 && (
-                      <span className="inline-flex min-w-[20px] items-center justify-center rounded-[var(--radius-full)] bg-[var(--color-brand-primary)] px-1.5 text-[10px] font-bold text-white">
-                        {badgeCount > 99 ? '99+' : badgeCount}
-                      </span>
-                    )}
-                  </Link>
+                    >
+                      <span
+                        aria-hidden
+                        className={cn(
+                          'absolute inset-y-1.5 left-0 w-[2px]',
+                          active ? 'bg-[var(--color-brand-primary)]' : 'bg-transparent',
+                        )}
+                      />
+                      {t(item.labelKey)}
+                      {badge > 0 ? (
+                        <span className="font-mono text-[11px] font-semibold text-[var(--color-brand-primary)] tnum">
+                          {badge > 99 ? '99+' : badge}
+                          <span className="sr-only"> unread</span>
+                        </span>
+                      ) : null}
+                    </Link>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           </div>
         ))}
       </nav>
 
-      {/* Public-site escape hatch. Sits above the user card so it's near
-          the natural eye path of "exit the app" gestures (like the user
-          avatar / settings). Subtle, not loud — most dashboard users don't
-          need this on every visit. */}
-      <div className="border-t border-[var(--color-border-subtle)] px-3 pt-2">
+      <div className="space-y-3 border-t border-[var(--color-border-default)] px-5 py-4">
+        <NetworkIndicator stacked />
         <Link
           href="/"
-          className="flex items-center gap-2.5 rounded-[var(--radius-md)] px-3 py-2 text-xs font-medium text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-text-primary)]/[0.04] hover:text-[var(--color-text-secondary)]"
+          className="inline-flex items-center gap-1 text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]"
         >
-          <Globe className="size-3.5 opacity-70" />
-          {t('nav.viewPublicSite')}
+          {t('shell.publicSite')}
+          <ArrowUpRight className="size-3" aria-hidden />
         </Link>
       </div>
-
-      {/* User card at bottom */}
-      {user && (
-        <div className="border-t border-[var(--color-border-default)] p-3">
-          <Link
-            href={user.username ? `/u/${user.username}` : '/dashboard/settings'}
-            className="flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-sm transition-colors hover:bg-[var(--color-text-primary)]/[0.04]"
-          >
-            <div className="flex size-8 items-center justify-center rounded-full bg-gradient-to-br from-[var(--color-brand-primary)]/30 to-[var(--color-brand-secondary)]/30 text-xs font-bold text-[var(--color-text-primary)]">
-              {(user.displayName ?? user.username ?? 'U').charAt(0).toUpperCase()}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-[var(--color-text-primary)]">
-                {user.displayName ?? user.username ?? 'User'}
-              </p>
-              <p className="truncate text-xs text-[var(--color-text-tertiary)]">
-                {user.username ? `@${user.username}` : user.email ?? ''}
-              </p>
-            </div>
-          </Link>
-        </div>
-      )}
-    </div>
-  );
-}
-
-export function DashboardSidebar() {
-  return (
-    <>
-      {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[260px] border-r border-[var(--color-border-default)] bg-[var(--color-background-secondary)] lg:block">
-        <SidebarContent />
-      </aside>
-    </>
+    </aside>
   );
 }

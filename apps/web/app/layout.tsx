@@ -1,40 +1,27 @@
 import type { Metadata, Viewport } from 'next';
-import { Geist, Geist_Mono, Inter, JetBrains_Mono } from 'next/font/google';
+import { IBM_Plex_Mono, Instrument_Sans } from 'next/font/google';
 import { Providers } from './providers';
 import { ThemeScript } from '@/components/theme/theme-provider';
+import { SITE_URL } from '@/lib/constants';
 import './globals.css';
 
 /**
- * Fonts:
- *   - Display: Geist (kept as fallback) + General Sans loaded via @import
- *     in globals.css. The CSS variable `--font-general-sans` is set on
- *     :root so the `--font-display` token in theme.css picks it up.
- *   - Body: Inter — universal & free, paired well with General Sans.
- *   - Mono: JetBrains Mono (primary) + Geist Mono (fallback). Used for
- *     0x addresses, code, monospace UI bits.
+ * Two families, self-hosted by next/font (no third-party stylesheet on the
+ * critical path):
+ *   - Instrument Sans: display and UI. A contemporary grotesk with enough
+ *     character for oversized editorial type, calm at body sizes.
+ *   - IBM Plex Mono: technical metadata (addresses, hashes, block numbers,
+ *     mono labels). Reads as documentation, not as a code editor.
  */
-const geist = Geist({
+const instrument = Instrument_Sans({
   subsets: ['latin'],
-  variable: '--font-geist',
-  display: 'swap',
-  weight: ['400', '500', '600', '700', '800'],
-});
-
-const geistMono = Geist_Mono({
-  subsets: ['latin'],
-  variable: '--font-geist-mono',
+  variable: '--font-instrument',
   display: 'swap',
 });
 
-const inter = Inter({
+const plexMono = IBM_Plex_Mono({
   subsets: ['latin'],
-  variable: '--font-inter',
-  display: 'swap',
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ['latin'],
-  variable: '--font-jetbrains-mono',
+  variable: '--font-plex-mono',
   display: 'swap',
   weight: ['400', '500', '600'],
 });
@@ -46,12 +33,13 @@ export const metadata: Metadata = {
   },
   description:
     'A freelance platform built on Base. Smart-contract escrow, on-chain reputation, and frictionless payouts — without the Web3 jargon.',
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'),
+  metadataBase: new URL(SITE_URL),
   openGraph: {
     title: 'Forj — Work, forged in trust.',
     description:
       'A freelance platform built on Base. Smart-contract escrow, on-chain reputation, and frictionless payouts — without the Web3 jargon.',
     siteName: 'Forj',
+    url: '/',
     type: 'website',
     locale: 'en_US',
   },
@@ -68,9 +56,11 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  // Match the new Bauhaus dark background so the browser chrome (Safari
-  // status bar, Android nav) blends in instead of flashing a stale colour.
-  themeColor: '#14130E',
+  // Browser chrome matches the page surface in each theme.
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#f3f1ec' },
+    { media: '(prefers-color-scheme: dark)', color: '#121211' },
+  ],
   width: 'device-width',
   initialScale: 1,
 };
@@ -83,16 +73,10 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geist.variable} ${geistMono.variable} ${inter.variable} ${jetbrainsMono.variable}`}
+      className={`${instrument.variable} ${plexMono.variable}`}
       suppressHydrationWarning
     >
       <head>
-        {/* General Sans display font from Fontshare. Loaded async; falls
-            back to Geist (declared in `--font-display`) until ready. */}
-        <link
-          rel="stylesheet"
-          href="https://api.fontshare.com/v2/css?f[]=general-sans@500,600,700&display=swap"
-        />
         {/* Anti-FOUC: applies the persisted / system theme synchronously
             BEFORE first paint. Must stay above any CSS-using markup. */}
         <ThemeScript />
@@ -101,7 +85,7 @@ export default function RootLayout({
         {/* Accessibility: skip to main content */}
         <a
           href="#main-content"
-          className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:rounded-[var(--radius-md)] focus:bg-[var(--color-brand-primary)] focus:px-4 focus:py-2 focus:text-[#14130E] focus:font-semibold"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:rounded-[var(--radius-md)] focus:bg-[var(--color-brand-primary)] focus:px-4 focus:py-2 focus:text-[var(--color-on-brand)] focus:font-semibold"
         >
           Skip to main content
         </a>

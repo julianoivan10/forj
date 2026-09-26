@@ -1,4 +1,5 @@
 import { dispatchEmailFn } from './functions/dispatch-email';
+import { escrowSyncFn } from './functions/escrow-sync';
 
 export { inngest } from './client';
 export type { ForjEventName, ForjEvents } from './client';
@@ -12,4 +13,4 @@ export type { ForjEventName, ForjEvents } from './client';
  * Adding a new function: drop it in `./functions/`, then push the
  * export into this array. No other wiring needed.
  */
-export const inngestFunctions = [dispatchEmailFn];
+export const inngestFunctions = [dispatchEmailFn, escrowSyncFn];

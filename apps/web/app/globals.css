@@ -1,43 +1,19 @@
 @import 'tailwindcss';
 @import '@forj/tailwind-config/theme.css';
 
-/* Fontshare-loaded General Sans → expose as a CSS variable so the
-   `--font-display` token in theme.css can read it. We declare the
-   variable in @layer base so it cascades to every component. */
-@layer base {
-  :root {
-    --font-general-sans: 'General Sans', var(--font-geist), ui-sans-serif, system-ui, sans-serif;
-  }
-}
-
 @layer base {
   /**
-   * Per-theme tokens for surface effects (glass, dot-grid, ambient bg).
-   * These can't live on the brand-color variables because they're _wash_
-   * tints, not solid colors — they need different alpha + hue per theme
-   * to avoid "dark gradient over white card" clashes.
-   *
-   * Defaults are dark; the `:root[data-theme="light"]` override below
-   * swaps them for light-mode-appropriate values.
+   * Per-theme values for the few surface effects that aren't plain tokens.
+   * There are no background washes: the page is paper (or carbon).
    */
   :root {
-    color-scheme: dark;
-
-    /* Bauhaus mesh: warm vermillion + cobalt washes,
-       deliberately subtle so they don't overpower content. */
-    --bg-mesh-violet: rgba(46, 79, 224, 0.07);   /* cobalt wash (kept var name for compat) */
-    --bg-mesh-cyan: rgba(220, 76, 42, 0.05);     /* vermillion wash (kept var name for compat) */
-    --glass-bg: rgba(30, 28, 22, 0.72);
-    --dot-color: rgba(234, 229, 218, 0.06);
-    --selection-bg: rgba(220, 76, 42, 0.28);
+    --glass-bg: var(--color-background-secondary);
+    --dot-color: transparent;
+    --selection-bg: rgba(31, 63, 209, 0.18);
   }
 
-  :root[data-theme="light"] {
-    --bg-mesh-violet: rgba(27, 54, 184, 0.04);
-    --bg-mesh-cyan: rgba(199, 62, 29, 0.04);
-    --glass-bg: rgba(255, 250, 240, 0.82);
-    --dot-color: rgba(26, 26, 26, 0.05);
-    --selection-bg: rgba(199, 62, 29, 0.16);
+  :root[data-theme='dark'] {
+    --selection-bg: rgba(127, 150, 255, 0.28);
   }
 
   * {
@@ -50,18 +26,15 @@
     color: var(--color-text-primary);
     font-family: var(--font-body);
     font-weight: 400;
-    line-height: 1.65;
+    line-height: 1.6;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+    font-feature-settings: 'ss01' 1;
   }
 
   body {
     min-height: 100vh;
-    background-image:
-      radial-gradient(ellipse at top, var(--bg-mesh-violet) 0%, transparent 60%),
-      radial-gradient(ellipse at bottom, var(--bg-mesh-cyan) 0%, transparent 50%);
-    background-attachment: fixed;
   }
 
   ::selection {
@@ -79,7 +52,7 @@
   }
   ::-webkit-scrollbar-thumb {
     background: var(--color-border-default);
-    border-radius: 10px;
+    border-radius: 0;
   }
   ::-webkit-scrollbar-thumb:hover {
     background: var(--color-border-strong);
@@ -228,40 +201,35 @@
     letter-spacing: -0.03em;
   }
 
+  /* Gradient text is retired; kept as a plain accent so old call sites stay legible. */
   .text-gradient-brand {
-    background: linear-gradient(
-      135deg,
-      var(--color-brand-primary) 0%,
-      var(--color-brand-secondary) 100%
-    );
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    color: transparent;
+    color: var(--color-brand-primary);
   }
-
+  /* Former frosted-glass surface: now a solid sheet with a hairline rule. */
   .glass {
-    background: var(--glass-bg);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border: 1px solid var(--color-border-default);
+    background: var(--color-background-secondary);
+    border-bottom: 1px solid var(--color-border-default);
   }
-
+  /* Former glow: a plain accent rule. */
   .glow-brand {
-    box-shadow:
-      0 0 0 1px var(--color-border-brand),
-      0 0 40px var(--color-glow-brand);
+    box-shadow: inset 0 0 0 1px var(--color-border-brand);
   }
-
   .dot-grid {
-    background-image: radial-gradient(
-      circle at 1px 1px,
-      var(--dot-color) 1px,
-      transparent 0
-    );
-    background-size: 24px 24px;
+    background-image: none;
   }
-
+  /* Numbers that line up in columns (amounts, counts, block numbers). */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+  /* Mono label: the technical-metadata voice of the UI. */
+  .label-mono {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.4;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-text-tertiary);
+  }
   .shimmer {
     background: linear-gradient(
       90deg,
@@ -277,8 +245,13 @@
     animation: var(--animate-fade-in-up);
   }
 
-  .animate-float {
-    animation: var(--animate-float);
+  /* Route content reveal (dashboard template). Short, state-only. */
+  .page-enter {
+    animation: page-enter 180ms ease-out both;
+  }
+  /* A waiting transaction: the only continuously moving element in the UI. */
+  .pending-pulse {
+    animation: pending-pulse 1.6s ease-in-out infinite;
   }
 
   /* Long-form prose styling for legal / about pages.
@@ -350,5 +323,63 @@
   .legal-prose .link:hover,
   .legal-prose a:hover {
     text-decoration-thickness: 2px;
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+/* Landing: escrow ledger reveal. Rows fade in one after another while the */
+/* rail fills behind them. `both` fill-mode keeps the final state, so with */
+/* reduced motion (animations clamped to ~0ms in theme.css) the complete   */
+/* ledger renders immediately.                                             */
+/* ---------------------------------------------------------------------- */
+@layer components {
+  .ledger-row {
+    animation: ledger-row-in 480ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+    animation-delay: calc(var(--i, 0) * 420ms + 250ms);
+  }
+  .ledger-rail {
+    transform-origin: top;
+    animation: ledger-rail-fill 2350ms cubic-bezier(0.45, 0, 0.25, 1) 250ms both;
+  }
+}
+
+@keyframes ledger-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes ledger-rail-fill {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pending-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
   }
 }

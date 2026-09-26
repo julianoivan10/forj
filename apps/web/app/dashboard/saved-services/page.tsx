@@ -120,7 +120,7 @@ function ServiceRow({ item, index }: { item: ItemShape; index: number }) {
           )}
           <Badge
             variant="default"
-            className="absolute left-3 top-3 backdrop-blur-md"
+            className="absolute left-3 top-3"
           >
             {item.category}
           </Badge>

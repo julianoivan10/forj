@@ -123,7 +123,7 @@ export function ModeSwitcher() {
         <DropdownMenu.Content
           align="start"
           sideOffset={6}
-          className="z-50 w-[244px] overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-background-secondary)] p-1.5 shadow-xl shadow-black/30"
+          className="z-50 w-[244px] overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-background-secondary)] p-1.5"
         >
           {SELECTABLE_MODES.map((m) => {
             const meta = MODE_META[m];

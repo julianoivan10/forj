@@ -229,7 +229,7 @@ function NotificationRow({
           'group flex w-full items-start gap-4 rounded-[var(--radius-xl)] border p-4 text-left transition-all',
           n.isRead
             ? 'border-[var(--color-border-default)] bg-[var(--color-background-secondary)] hover:border-[var(--color-border-strong)]'
-            : 'border-[var(--color-border-brand)] bg-[var(--color-glow-brand)] hover:shadow-[0_0_24px_var(--color-glow-brand-strong)]',
+            : 'border-[var(--color-border-brand)] bg-[var(--color-glow-brand)]',
         )}
       >
         {/* Actor avatar or fallback icon */}

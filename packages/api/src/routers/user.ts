@@ -1,5 +1,5 @@
 import { TRPCError } from '@trpc/server';
-import { and, contracts, eq, inArray, isNull, jobs, messages, notifications, or, proposals, reviews, users } from '@forj/db';
+import { and, contracts, desc, eq, inArray, isNull, jobs, messages, notifications, or, proposals, reviews, users } from '@forj/db';
 import { WelcomeEmail, sendEmail } from '@forj/email';
 import { z } from 'zod';
 import { isAllowedFileUrl } from '../lib/file-host';
@@ -68,6 +68,57 @@ export const userRouter = createTRPCRouter({
       return user;
     }),
 
+  /**
+   * Public work record: a user's completed contracts. Only contracts in
+   * `completed` status (already public via /proof/<id>) and only fields the
+   * proof page shows: no email, privyId, wallets, messages or unfinished work.
+   */
+  workRecord: publicProcedure
+    .input(z.object({ username: usernameSchema }))
+    .query(async ({ ctx, input }) => {
+      const owner = await ctx.db.query.users.findFirst({
+        where: and(eq(users.username, input.username), isNull(users.deletedAt)),
+        columns: { id: true },
+      });
+      if (!owner) throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found' });
+      const party = { columns: { username: true, displayName: true } } as const;
+      const rows = await ctx.db.query.contracts.findMany({
+        where: and(
+          eq(contracts.status, 'completed'),
+          or(eq(contracts.freelancerId, owner.id), eq(contracts.clientId, owner.id)),
+        ),
+        orderBy: [desc(contracts.completedAt)],
+        limit: 50,
+        columns: {
+          id: true,
+          title: true,
+          clientId: true,
+          freelancerId: true,
+          totalAmount: true,
+          freelancerAmount: true,
+          settledToFreelancer: true,
+          completedAt: true,
+          releaseTxHash: true,
+          chainId: true,
+          escrowVersion: true,
+          onChainContractId: true,
+        },
+        with: { client: party, freelancer: party },
+      });
+      return rows.map(({ clientId, freelancerId, client, freelancer, ...c }) => {
+        const asFreelancer = freelancerId === owner.id;
+        return {
+          ...c,
+          role: asFreelancer ? ('freelancer' as const) : ('client' as const),
+          counterparty: asFreelancer ? client : freelancer,
+          // Chain-settled amount when V3 recorded it; otherwise the agreed payout.
+          paidToFreelancer: c.settledToFreelancer != null
+            ? (Number(c.settledToFreelancer) / 1_000_000).toFixed(2)
+            : String(c.freelancerAmount),
+        };
+      });
+    }),
+
   checkUsernameAvailable: publicProcedure
     .input(z.object({ username: usernameSchema }))
     .query(async ({ ctx, input }) => {
@@ -129,7 +180,7 @@ export const userRouter = createTRPCRouter({
         try {
           await sendEmail({
             to: updated.email,
-            subject: `Welcome to WorkChain, ${updated.displayName ?? updated.username}`,
+            subject: `Welcome to Forj, ${updated.displayName ?? updated.username}`,
             react: WelcomeEmail({
               displayName: updated.displayName ?? updated.username ?? 'there',
               role: updated.role,

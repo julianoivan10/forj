@@ -57,8 +57,7 @@ apps/contracts/broadcast/
 apps/contracts/lib/
 apps/contracts/.env
 
-# Drizzle
-packages/db/drizzle/
+# Drizzle — migrations in packages/db/drizzle/ are versioned and MUST be committed.
 
 # Sentry
 .sentryclirc

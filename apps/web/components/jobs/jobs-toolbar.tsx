@@ -52,7 +52,7 @@ export function JobsToolbar({
             className={cn(
               'relative flex h-11 items-center rounded-[var(--radius-md)]',
               'border border-[var(--color-border-default)] bg-[var(--color-background-elevated)]',
-              'focus-within:border-[var(--color-brand-primary)] focus-within:shadow-[0_0_0_3px_var(--color-glow-brand)]',
+              'focus-within:border-[var(--color-brand-primary)]',
             )}
           >
             <select

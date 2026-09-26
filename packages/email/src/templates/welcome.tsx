@@ -13,8 +13,8 @@ export function WelcomeEmail({ displayName, role }: WelcomeEmailProps) {
       : { href: `${appUrl}/jobs`, label: 'Find Your First Job' };
 
   return (
-    <EmailLayout preview={`Welcome to WorkChain, ${displayName}!`}>
-      <Heading>Welcome to WorkChain, {displayName}!</Heading>
+    <EmailLayout preview={`Welcome to Forj, ${displayName}!`}>
+      <Heading>Welcome to Forj, {displayName}!</Heading>
       <Paragraph>
         You are now part of a new way to work — where trust is built-in, payments are transparent,
         and your reputation travels with you on-chain.

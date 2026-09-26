@@ -93,3 +93,41 @@ export const notificationTypeEnum = pgEnum('notification_type', [
   // System
   'system',
 ]);
+
+/**
+ * Which escrow contract generation backs a contract row. v2 rows keep the
+ * legacy ForjEscrow flow; v3 rows follow the on-chain state machine.
+ */
+export const escrowVersionEnum = pgEnum('escrow_version', ['v2', 'v3']);
+
+/**
+ * Mirror of ForjEscrowV3.Status. Written ONLY from confirmed on-chain
+ * events or direct chain reads, never from user intent.
+ */
+export const escrowOnchainStatusEnum = pgEnum('escrow_onchain_status', [
+  'none',
+  'funded',
+  'submitted',
+  'revision_requested',
+  'disputed',
+  'released',
+  'refunded',
+  'resolved',
+]);
+
+/** Escrow function a recorded transaction is expected to perform. */
+export const escrowActionEnum = pgEnum('escrow_action', [
+  'fund',
+  'submit_work',
+  'request_revision',
+  'release',
+  'release_after_review',
+  'cancel_by_freelancer',
+  'refund_after_deadline',
+  'raise_dispute',
+  'resolve_dispute',
+  'resolve_expired_dispute',
+]);
+
+/** Lifecycle of a user-submitted escrow transaction as seen by Forj. */
+export const escrowTxStatusEnum = pgEnum('escrow_tx_status', ['pending', 'confirmed', 'failed']);

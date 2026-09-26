@@ -21,6 +21,8 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'utfs.io' },
+      // UploadThing v7.4+ returns per-app `<appId>.ufs.sh` URLs.
+      { protocol: 'https', hostname: '*.ufs.sh' },
       { protocol: 'https', hostname: 'gateway.pinata.cloud' },
       { protocol: 'https', hostname: '*.mypinata.cloud' },
       { protocol: 'https', hostname: 'avatars.githubusercontent.com' },
